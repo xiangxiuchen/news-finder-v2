@@ -372,25 +372,47 @@
             inputHint.textContent = '正在抓取新闻内容...';
             rawText = await fetchPageContent(inputUrl);
           } else {
-            // Video URL — try Jina Reader first, show manual text option
+            // Video URL — try Jina Reader first
             inputHint.textContent = '正在抓取视频页面信息...';
 
             let metaText = '';
             try {
               metaText = await fetchPageMeta(inputUrl);
-              // If we got enough content, use it
               if (metaText && metaText.length > 100) {
                 rawText = metaText;
               } else {
                 throw new Error('content too short');
               }
             } catch {
-              // Show manual text input area
+              // Video content can't be auto-fetched — stop and ask user
+              isAnalyzing = false;
+              analyzeBtn.disabled = false;
+              btnText.textContent = '拆解';
               manualArea.classList.remove('hidden');
-              inputHint.textContent = '检测到视频链接，可粘贴文案辅助分析';
+              manualText.focus();
+              inputHint.textContent = '需要你粘贴视频文案来辅助分析';
 
-              // Still try with minimal info
-              rawText = `[视频链接] ${inputUrl}\n[平台] ${PLATFORM_NAMES[urlType] || urlType}\n[说明] 该平台内容无法自动抓取，建议粘贴视频文案后重新分析。`;
+              contentArea.innerHTML = `
+                <div class="animate-in card-glow rounded-2xl p-6 text-center">
+                  <div class="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
+                    <i class="lucide-video text-amber-400 text-2xl"></i>
+                  </div>
+                  <h3 class="text-sm font-medium text-white/80 mb-2">无法自动抓取视频内容</h3>
+                  <p class="text-xs text-white/40 leading-relaxed mb-1">
+                    抖音/B站等视频平台无法直接提取文案。
+                  </p>
+                  <p class="text-xs text-white/40 leading-relaxed mb-5">
+                    请在下方文本框粘贴视频的 <span class="text-amber-400/80">描述文案</span> 或 <span class="text-amber-400/80">字幕文本</span>，然后点"用此文案分析"。
+                  </p>
+                  <div class="bg-white/5 rounded-xl p-3 text-left">
+                    <p class="text-[10px] text-white/30 mb-1">💡 获取文案的方法</p>
+                    <p class="text-xs text-white/50 leading-relaxed">
+                      在抖音 App 打开视频 → 点分享 → 复制链接/文案 → 粘贴到下方文本框
+                    </p>
+                  </div>
+                </div>
+              `;
+              return;
             }
           }
         } else {
