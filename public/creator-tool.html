@@ -292,6 +292,74 @@
       `;
     }
 
+    // ===== Extract content via /api/extract (with polling for async tasks) =====
+    async function extractContent(url) {
+      const res = await fetch(`/api/extract?url=${encodeURIComponent(url)}`);
+      if (!res.ok) throw new Error(`提取失败 (${res.status})`);
+      const data = await res.json();
+
+      // Sync result
+      if (data.status === 'completed') {
+        if (data.text && data.text.length > 50) return { text: data.text, source: data.source || 'proxy' };
+        throw new Error('内容太少，无法分析');
+      }
+
+      // Async processing (Apify transcription) — poll for results
+      if (data.status === 'processing' && data.runId) {
+        const runId = data.runId;
+        inputHint.textContent = data.message || '正在转录视频语音...';
+        // Show a friendly waiting card
+        contentArea.innerHTML = `
+          <div class="animate-in card-glow relative rounded-2xl p-6 text-center">
+            <div class="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center mx-auto mb-3">
+              <i class="lucide-loader-2 text-blue-400 text-2xl animate-spin"></i>
+            </div>
+            <h3 class="text-sm font-medium text-white/80 mb-2">正在转录视频语音</h3>
+            <p class="text-xs text-white/40 leading-relaxed mb-3">将视频中的语音转换成文字，大约需要 15-30 秒</p>
+            <div class="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+              <div class="h-full bg-blue-500/40 rounded-full animate-in" style="width:60%"></div>
+            </div>
+          </div>
+        `;
+
+        // Poll every 3 seconds
+        for (let attempt = 0; attempt < 20; attempt++) {
+          await new Promise(r => setTimeout(r, 3000));
+          try {
+            const pollRes = await fetch(`/api/extract?runId=${runId}`);
+            const pollData = await pollRes.json();
+
+            if (pollData.status === 'completed' && pollData.text && pollData.text.length > 50) {
+              return { text: pollData.text, source: 'apify_transcript' };
+            }
+
+            if (pollData.status === 'completed') {
+              // Text too short - might be minimal metadata
+              if (pollData.text && pollData.text.length > 10) {
+                return { text: pollData.text, source: 'apify_transcript' };
+              }
+              throw new Error('未能提取到视频文案');
+            }
+
+            if (pollData.status === 'failed' || pollData.status === 'error') {
+              throw new Error('视频转录失败');
+            }
+            // else still 'processing' — keep polling
+          } catch (e) {
+            if (e.message !== '提取失败' && !e.message.includes('提取')) throw e;
+          }
+        }
+        throw new Error('转录超时，请稍后重试');
+      }
+
+      // No result (Apify not configured)
+      if (data.status === 'none') {
+        throw new Error(data.note || '无法提取该链接的内容');
+      }
+
+      throw new Error('无法提取该链接的内容');
+    }
+
     // ===== Main Analyze =====
     async function doAnalyze(textInput, mode, linkedUrl) {
       if (!API_KEY_OK) { toast('请先填写 DeepSeek API Key', 'error'); return; }
