@@ -27,53 +27,63 @@ function getDouyinID(url: string): string | null {
   return null;
 }
 
-/** Try to fetch Douyin video info directly from server */
-async function fetchDouyinInfo(url: string): Promise<string | null> {
-  // Approach 1: Direct fetch with mobile headers
+/** Fetch with timeout helper */
+async function fetchWithTimeout(url: string, options: RequestInit & { timeout?: number } = {}): Promise<Response> {
+  const { timeout = 8000, ...fetchOpts } = options;
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
   try {
-    const res = await fetch(url, {
+    const res = await fetch(url, { ...fetchOpts, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(id);
+  }
+}
+
+/** Try to fetch Douyin video info */
+async function fetchDouyinInfo(url: string): Promise<string | null> {
+  // Approach 1: Jina Reader (has Chinese nodes, more likely to work)
+  try {
+    const res = await fetchWithTimeout(`${JINA_READER}/${encodeURI(url)}`, {
+      headers: { 'Accept': 'text/plain', 'X-With-Links-Summary': 'true' },
+      timeout: 10000,
+    });
+    if (res.ok) {
+      const text = await res.text();
+      if (text && text.length > 50) return text;
+    }
+  } catch {}
+
+  // Approach 2: Direct fetch with mobile headers
+  try {
+    const res = await fetchWithTimeout(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.5',
-        'Cookie': 'IN_CLICK_GUIDE=1; IS_SUPPORT_WEB=1;',
       },
+      timeout: 5000,
     });
     if (res.ok) {
       const html = await res.text();
-      // Extract title from meta tags
       const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
       const descMatch = html.match(/<meta[^>]+name="description"[^>]+content="([^"]+)"/i);
       const ogDesc = html.match(/<meta[^>]+property="og:description"[^>]+content="([^"]+)"/i);
-      const keywords = html.match(/<meta[^>]+name="keywords"[^>]+content="([^"]+)"/i);
+      const keywordsMatch = html.match(/<meta[^>]+name="keywords"[^>]+content="([^"]+)"/i);
 
       let text = '';
       if (titleMatch) text += `标题：${titleMatch[1].replace(/ - 抖音$/, '')}\n`;
       if (descMatch) text += `描述：${descMatch[1]}\n`;
       if (ogDesc && !descMatch) text += `描述：${ogDesc[1]}\n`;
-      if (keywords) text += `标签：${keywords[1]}\n`;
+      if (keywordsMatch) text += `标签：${keywordsMatch[1]}\n`;
 
-      // Try to extract from JSON-LD
-      const jsonLDMatch = html.match(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/i);
-      if (jsonLDMatch) {
-        try {
-          const ld = JSON.parse(jsonLDMatch[1]);
-          if (ld.description) text += `简介：${ld.description}\n`;
-        } catch {}
-      }
+      const jsonLD = html.match(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/i);
+      if (jsonLD) try {
+        const ld = JSON.parse(jsonLD[1]);
+        if (ld.description) text += `简介：${ld.description}\n`;
+      } catch {}
 
       if (text.length > 20) return text;
-    }
-  } catch {}
-
-  // Approach 2: Try via Jina Reader
-  try {
-    const res = await fetch(`${JINA_READER}/${encodeURI(url)}`, {
-      headers: { 'Accept': 'text/plain', 'X-With-Links-Summary': 'true' },
-    });
-    if (res.ok) {
-      const text = await res.text();
-      if (text && text.length > 50) return text;
     }
   } catch {}
 
