@@ -328,12 +328,22 @@
           inputHint.textContent = '正在提取内容...';
 
           // Try server-side extraction (works for news AND video platforms)
-          const result = await extractContent(textInput);
-          rawText = result.text;
+          try {
+            const result = await extractContent(textInput);
+            rawText = result.text;
+          } catch (e) {
+            // Extraction failed — if it's a video, show manual input; else throw
+            if (platform !== 'news') {
+              showVideoInput(platform, textInput);
+              isAnalyzing = false; analyzeBtn.disabled = false; btnText.textContent = '拆解';
+              inputHint.textContent = '支持新闻 / 抖音 / B站 / YouTube 链接';
+              return;
+            }
+            throw e;
+          }
 
-          // If extraction returned very little, check if it's a video
+          // If extraction returned very little and it's a video, show manual input
           if (rawText.length < 80 && platform !== 'news') {
-            // Video extraction failed — show manual input
             showVideoInput(platform, textInput);
             isAnalyzing = false; analyzeBtn.disabled = false; btnText.textContent = '拆解';
             inputHint.textContent = '支持新闻 / 抖音 / B站 / YouTube 链接';
