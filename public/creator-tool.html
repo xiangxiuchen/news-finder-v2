@@ -8,7 +8,6 @@
   <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.344.0/font/lucide.css" rel="stylesheet">
   <style>
     * { -webkit-tap-highlight-color: transparent; }
-
     body {
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC",
         "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
@@ -33,7 +32,6 @@
     .animate-spin { animation: spin 0.8s linear infinite; }
 
     .card-glow {
-      position: relative;
       background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
@@ -52,13 +50,7 @@
       pointer-events: none;
     }
 
-    .shimmer-bg {
-      background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.06) 50%, rgba(255,255,255,0.03) 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.5s ease-in-out infinite;
-    }
-
-    .tab-active { position: relative; color: #f5f5f7; }
+    .tab-active { color: #f5f5f7; }
     .tab-active::after {
       content: '';
       position: absolute;
@@ -70,17 +62,20 @@
       border-radius: 1px;
       background: #f5f5f7;
     }
-
     .no-scrollbar::-webkit-scrollbar { display: none; }
-    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-    textarea::placeholder { color: rgba(255,255,255,0.2); }
-    textarea:focus { outline: none; border-color: rgba(255,255,255,0.2); }
+    .shimmer-bg {
+      background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.06) 50%, rgba(255,255,255,0.03) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s ease-in-out infinite;
+    }
+
+    textarea::placeholder { color: rgba(255,255,255,0.25); }
+    textarea:focus { outline: none; border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.07); }
   </style>
 </head>
 <body>
-  <div id="app" class="flex flex-col h-dvh max-w-lg mx-auto relative overflow-hidden">
-
+  <div id="app" class="flex flex-col h-dvh max-w-lg mx-auto overflow-hidden">
     <!-- Header -->
     <header class="px-5 pt-5 pb-3 shrink-0">
       <div class="flex items-center gap-3">
@@ -96,47 +91,23 @@
 
     <!-- Input -->
     <div class="px-5 pb-2 shrink-0">
-      <div class="relative">
+      <div class="flex gap-2">
         <input id="urlInput" type="url" autocomplete="off" spellcheck="false"
           placeholder="粘贴新闻或视频链接..."
-          class="w-full h-11 pl-4 pr-24 text-sm bg-white/5 border border-white/10 rounded-xl
-                 focus:outline-none focus:border-white/20 focus:bg-white/[0.07] transition-all
+          class="flex-1 h-11 px-4 text-sm bg-white/5 border border-white/10 rounded-xl
+                 focus:outline-none focus:border-white/20 transition-all
                  placeholder:text-white/20 text-white/80"
         />
         <button id="analyzeBtn"
-          class="absolute right-1 top-1 bottom-1 px-3.5 text-xs font-medium
-                 bg-white text-black rounded-lg hover:bg-white/90 transition-all
+          class="shrink-0 h-11 px-4 text-xs font-medium
+                 bg-white text-black rounded-xl hover:bg-white/90 transition-all
                  flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <i class="lucide-wand-2 text-sm"></i>
           <span id="btnText">拆解</span>
         </button>
       </div>
-      <p id="inputHint" class="text-[10px] text-white/20 mt-1.5 px-1">
-        支持新闻 / 抖音 / B站 / YouTube 链接
-      </p>
-    </div>
-
-    <!-- Manual text area (shown when video URL is detected or user expands it) -->
-    <div id="manualArea" class="px-5 pb-2 shrink-0 hidden">
-      <div class="card-glow rounded-xl p-3">
-        <div class="flex items-center justify-between mb-2">
-          <span class="text-[10px] font-medium text-white/40 uppercase tracking-wider">或粘贴文案/字幕</span>
-          <button id="hideManualBtn" class="text-white/20 hover:text-white/40 text-xs">
-            <i class="lucide-x text-sm"></i>
-          </button>
-        </div>
-        <textarea id="manualText" rows="3"
-          class="w-full text-xs bg-white/5 border border-white/10 rounded-lg px-3 py-2
-                 text-white/70 resize-none leading-relaxed"
-          placeholder="粘贴视频的描述文案、字幕或 ASR 文本..."></textarea>
-        <button id="manualAnalyzeBtn"
-          class="mt-2 w-full h-8 text-[11px] font-medium bg-white/10 hover:bg-white/15
-                 text-white/60 rounded-lg transition-all flex items-center justify-center gap-1.5">
-          <i class="lucide-wand-2 text-sm"></i>
-          用此文案分析
-        </button>
-      </div>
+      <p id="inputHint" class="text-[10px] text-white/20 mt-1.5 px-1">支持新闻 / 抖音 / B站 / YouTube 链接</p>
     </div>
 
     <!-- Content -->
@@ -144,16 +115,16 @@
       <div id="contentArea"></div>
     </main>
 
-    <!-- Bottom Tabs -->
+    <!-- Tabs -->
     <div class="shrink-0 border-t border-white/5 bg-[#0a0a0b]">
       <div class="flex items-center justify-around py-2.5 max-w-lg mx-auto">
-        <button id="tabGrab" class="tab-btn flex items-center gap-1.5 text-xs text-white/40 transition-colors tab-active">
+        <button id="tabGrab" class="tab-btn relative flex items-center gap-1.5 text-xs text-white/40 transition-colors tab-active">
           <i class="lucide-link-2 text-base"></i>
           <span>素材抓取</span>
         </button>
-        <button id="tabLibrary" class="tab-btn flex items-center gap-1.5 text-xs text-white/40 transition-colors">
+        <button id="tabLibrary" class="tab-btn relative flex items-center gap-1.5 text-xs text-white/40 transition-colors">
           <i class="lucide-bookmark text-base"></i>
-          <span>选题库</span>
+          <span id="libBadge">选题库</span>
         </button>
       </div>
     </div>
@@ -164,43 +135,34 @@
 
   <script>
     // ================================================================
-    // ★★★ API 配置 — 已帮你填好 ★★★
+    // 配置 — 已填好
     // ================================================================
     const DEEPSEEK_API_KEY = 'sk-e38c534d7b204e62922326b5c3b683e1';
     const JINA_READER_URL = 'https://r.jina.ai';
     // ================================================================
 
     const DEEPSEEK_API = 'https://api.deepseek.com/v1/chat/completions';
+    const API_KEY_OK = DEEPSEEK_API_KEY && DEEPSEEK_API_KEY !== 'your_deepseek_api_key_here';
 
     // DOM
-    const $ = s => document.querySelector(s);
-    const urlInput = $('#urlInput');
-    const analyzeBtn = $('#analyzeBtn');
-    const btnText = $('#btnText');
-    const contentArea = $('#contentArea');
-    const tabGrab = $('#tabGrab');
-    const tabLibrary = $('#tabLibrary');
-    const toastContainer = $('#toastContainer');
-    const inputHint = $('#inputHint');
-    const manualArea = $('#manualArea');
-    const manualText = $('#manualText');
-    const manualAnalyzeBtn = $('#manualAnalyzeBtn');
-    const hideManualBtn = $('#hideManualBtn');
+    const urlInput = document.getElementById('urlInput');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const btnText = document.getElementById('btnText');
+    const contentArea = document.getElementById('contentArea');
+    const tabGrab = document.getElementById('tabGrab');
+    const tabLibrary = document.getElementById('tabLibrary');
+    const libBadge = document.getElementById('libBadge');
+    const toastContainer = document.getElementById('toastContainer');
+    const inputHint = document.getElementById('inputHint');
 
     let isAnalyzing = false;
-    let lastUrl = '';
-    let lastUrlType = '';
 
     // ===== Toast =====
-    function showToast(msg, type = 'success') {
-      const cfg = {
-        success: 'bg-green-500/20 text-green-300 border-green-500/20',
-        error: 'bg-red-500/20 text-red-300 border-red-500/20',
-        info: 'bg-blue-500/20 text-blue-300 border-blue-500/20',
-      };
-      const icons = { success: 'check-circle', error: 'x-circle', info: 'info' };
+    function toast(msg, type = 'success') {
+      const c = { success:'bg-green-500/20 text-green-300', error:'bg-red-500/20 text-red-300', info:'bg-blue-500/20 text-blue-300' };
+      const icons = { success:'check-circle', error:'x-circle', info:'info' };
       const el = document.createElement('div');
-      el.className = `px-4 py-2.5 rounded-xl text-xs border backdrop-blur-lg ${cfg[type] || cfg.info} flex items-center gap-2 pointer-events-auto`;
+      el.className = `px-4 py-2.5 rounded-xl text-xs border backdrop-blur-lg ${c[type]||c.info} flex items-center gap-2 pointer-events-auto`;
       el.innerHTML = `<i class="lucide-${icons[type]} text-sm"></i>${msg}`;
       toastContainer.appendChild(el);
       setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(() => el.remove(), 300); }, 2200);
@@ -208,145 +170,151 @@
 
     // ===== Library =====
     function getLib() { try { return JSON.parse(localStorage.getItem('creator-library') || '[]'); } catch { return []; } }
-    function saveLib(data) { localStorage.setItem('creator-library', JSON.stringify(data)); }
+    function saveLib(d) { localStorage.setItem('creator-library', JSON.stringify(d)); }
 
-    function saveToLib(item) {
-      const lib = getLib();
-      lib.unshift({ ...item, id: Date.now(), savedAt: new Date().toLocaleString('zh-CN') });
-      saveLib(lib);
-      showToast('已保存到选题库', 'success');
+    function updateLibBadge() {
+      const n = getLib().length;
+      if (n > 0) libBadge.textContent = `选题库 (${n})`; else libBadge.textContent = '选题库';
     }
 
-    function removeFromLib(id) {
-      const lib = getLib().filter(i => i.id !== id);
-      saveLib(lib);
-      showToast('已移除', 'info');
-    }
-
-    // ===== URL Detection =====
-    function detectUrl(url) {
+    // ===== Platform Detection =====
+    function detectPlatform(url) {
       try { new URL(url); } catch { return null; }
       const ps = [
-        { type: 'douyin', match: /(douyin\.com|iesdouyin\.com)/i },
-        { type: 'bilibili', match: /bilibili\.com/i },
-        { type: 'youtube', match: /(youtube\.com|youtu\.be)/i },
-        { type: 'kuaishou', match: /kuaishou\.com/i },
-        { type: 'weibo', match: /weibo\.com/i },
-        { type: 'xhs', match: /(xiaohongshu\.com|xhslink\.com)/i },
+        ['douyin', /(douyin\.com|iesdouyin\.com)/i],
+        ['bilibili', /bilibili\.com/i],
+        ['youtube', /(youtube\.com|youtu\.be)/i],
+        ['kuaishou', /kuaishou\.com/i],
+        ['weibo', /weibo\.com/i],
+        ['xhs', /(xiaohongshu\.com|xhslink\.com)/i],
       ];
-      for (const p of ps) { if (p.match.test(url)) return p.type; }
+      for (const [name, re] of ps) { if (re.test(url)) return name; }
       return 'news';
     }
+    const PNAME = { douyin:'抖音', bilibili:'B站', youtube:'YouTube', kuaishou:'快手', weibo:'微博', xhs:'小红书', news:'新闻' };
 
-    const PLATFORM_NAMES = { douyin:'抖音', bilibili:'B站', youtube:'YouTube', kuaishou:'快手', weibo:'微博', xhs:'小红书', news:'新闻' };
-
-    // ===== Fetch web content (with better video support) =====
-    async function fetchPageContent(url) {
-      // Try Jina Reader with markdown format (better for extracting article text)
+    // ===== Jina Reader (for news only) =====
+    async function fetchNews(url) {
       const res = await fetch(`${JINA_READER_URL}/${encodeURI(url)}`, {
-        headers: {
-          'Accept': 'text/plain',
-          'X-With-Links-Summary': 'true',
-          'X-With-Images-Summary': 'true',
-        },
+        headers: { 'Accept': 'text/plain', 'X-With-Links-Summary': 'true' },
       });
       if (!res.ok) throw new Error(`抓取失败 (${res.status})`);
       return await res.text();
     }
 
-    // ===== Extract metadata from URL via Open Graph (fallback) =====
-    async function fetchPageMeta(url) {
-      const res = await fetch(`${JINA_READER_URL}/${encodeURI(url)}`, {
-        headers: {
-          'Accept': 'text/plain',
-          'X-With-Generated-Alt': 'true',
-          'X-Return-Format': 'markdown',
-        },
-      });
-      if (!res.ok) throw new Error('获取页面信息失败');
-      return await res.text();
-    }
-
-    // ===== DeepSeek AI =====
+    // ===== DeepSeek =====
     async function callAI(system, userMsg) {
       const res = await fetch(DEEPSEEK_API, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${DEEPSEEK_API_KEY}` },
         body: JSON.stringify({
           model: 'deepseek-chat',
-          messages: [
-            { role: 'system', content: system },
-            { role: 'user', content: userMsg },
-          ],
+          messages: [{ role: 'system', content: system }, { role: 'user', content: userMsg }],
           max_tokens: 1500,
-          stream: false,
         }),
       });
-      if (!res.ok) {
-        const err = await res.text().catch(() => '');
-        throw new Error(`AI 请求失败 (${res.status})`);
-      }
+      if (!res.ok) throw new Error(`AI 请求失败 (${res.status})`);
       const data = await res.json();
       return data.choices?.[0]?.message?.content || '';
     }
 
-    // ===== AI Prompt =====
-    const SYSTEM_PROMPT = `你是一个自媒体爆款教练。分析以下素材（新闻内容或视频文案），为创作者输出一份发帖指南。
+    const SYSTEM_PROMPT = `你是一个自媒体爆款教练。分析以下素材，为创作者输出一份发帖指南。
 
-请严格按照以下 JSON 格式输出，不要包含其他内容：
+输出 JSON 格式（不要包含其他内容）：
 {
   "title": "吸引眼球的标题建议",
-  "summary": "核心事实摘要（150字以内，一目了然发生了什么）",
-  "hotAnalysis": "爆点分析（为什么这个话题能火？抓住了大众什么心理？）",
-  "angles": [
-    "角度1: 针对不同 IP 定位的发帖切入点",
-    "角度2: 针对不同 IP 定位的发帖切入点",
-    "角度3: 针对不同 IP 定位的发帖切入点"
-  ]
+  "summary": "核心事实摘要（150字以内）",
+  "hotAnalysis": "爆点分析（为什么能火？抓住了什么心理？）",
+  "angles": ["角度1: ...", "角度2: ...", "角度3: ..."]
 }
 
-要求：
-- summary 简明扼要，直击核心
-- hotAnalysis 分析情绪共鸣点、冲突点、传播动力
-- angles 给出 3 个不同的发帖/发视频视角，每个角度包含吸睛标题建议`;
+要求：summary 直击核心，hotAnalysis 分析情绪共鸣点和传播动力，angles 给出 3 个不同视角的发帖切入点。`;
 
-    // ===== Parse AI response =====
     function parseAI(text) {
       try { return JSON.parse(text); } catch {}
       const m = text.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (m) try { return JSON.parse(m[1]); } catch {}
-      // Try to find JSON object
-      const start = text.indexOf('{');
-      const end = text.lastIndexOf('}');
-      if (start >= 0 && end > start) try { return JSON.parse(text.slice(start, end + 1)); } catch {}
+      const s = text.indexOf('{'), e = text.lastIndexOf('}');
+      if (s >= 0 && e > s) try { return JSON.parse(text.slice(s, e+1)); } catch {}
       throw new Error('AI 返回格式异常，请重试');
     }
 
+    function esc(str) { if (!str) return ''; const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+
+    // ===== Show Video Input Screen =====
+    function showVideoInput(platform, url) {
+      contentArea.innerHTML = `
+        <div class="animate-in">
+          <div class="card-glow relative rounded-2xl p-5 mb-4 text-center">
+            <div class="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-3">
+              <i class="lucide-video text-amber-400 text-xl"></i>
+            </div>
+            <h3 class="text-sm font-medium text-white/80 mb-1">检测到 ${PNAME[platform]||'视频'} 链接</h3>
+            <p class="text-xs text-white/40 leading-relaxed mb-4">
+              视频平台无法自动提取文案<br>
+              请在下框中<strong class="text-white/60">粘贴视频的描述文字或你的想法</strong>
+            </p>
+            <textarea id="videoTextInput" rows="4"
+              class="w-full text-sm bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white/70 resize-none leading-relaxed mb-3"
+              placeholder="粘贴视频文案&#10;或用自己的话描述视频内容...&#10;&#10;例如：这个视频讲的是一个人用AI工具一天做了100张图，月入5万..."></textarea>
+            <div class="flex gap-2">
+              <button id="cancelVideoBtn"
+                class="flex-1 h-10 text-xs font-medium bg-white/10 hover:bg-white/15 text-white/50 rounded-xl transition-all">
+                取消
+              </button>
+              <button id="submitVideoTextBtn"
+                class="flex-1 h-10 text-xs font-medium bg-white text-black rounded-xl hover:bg-white/90 transition-all flex items-center justify-center gap-1.5">
+                <i class="lucide-wand-2 text-sm"></i>
+                开始分析
+              </button>
+            </div>
+          </div>
+          <div class="bg-white/[0.02] rounded-2xl p-4">
+            <p class="text-[11px] text-white/30 mb-2">💡 怎么获取视频文案？</p>
+            <ol class="text-xs text-white/40 leading-relaxed space-y-1 list-decimal list-inside">
+              <li>在抖音 App 打开视频</li>
+              <li>点击分享 → 复制链接</li>
+              <li>或用第三方工具提取视频文案</li>
+              <li>也可以用自己的话描述视频内容</li>
+            </ol>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('cancelVideoBtn').onclick = () => showHome();
+      document.getElementById('submitVideoTextBtn').onclick = async () => {
+        const text = document.getElementById('videoTextInput').value.trim();
+        if (!text) { toast('请粘贴或描述视频内容', 'error'); return; }
+        await doAnalyze(text, 'video_desc', url);
+      };
+    }
+
+    // ===== Show Home =====
+    function showHome() {
+      contentArea.innerHTML = `
+        <div class="pt-16 text-center">
+          <div class="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-4">
+            <i class="lucide-link-2 text-white/20 text-2xl"></i>
+          </div>
+          <h3 class="text-sm font-medium text-white/40 mb-1">粘贴链接开始拆解</h3>
+          <p class="text-xs text-white/20">新闻 / 抖音 / B站 / YouTube 都可以</p>
+        </div>
+      `;
+    }
+
     // ===== Main Analyze =====
-    async function handleAnalyze(sourceText, sourceLabel) {
-      if (!DEEPSEEK_API_KEY || DEEPSEEK_API_KEY === 'your_deepseek_api_key_here') {
-        showToast('请先在代码中填写 DeepSeek API Key', 'error');
-        return;
-      }
+    async function doAnalyze(textInput, mode, linkedUrl) {
+      if (!API_KEY_OK) { toast('请先填写 DeepSeek API Key', 'error'); return; }
       if (isAnalyzing) return;
-
-      const inputUrl = sourceText || urlInput.value.trim();
-      if (!inputUrl && !sourceText) { showToast('请粘贴链接或输入文案', 'error'); return; }
-
-      const isManualText = !!sourceText;
 
       isAnalyzing = true;
       analyzeBtn.disabled = true;
       btnText.textContent = '分析中...';
-      manualArea.classList.add('hidden');
 
       // Loading skeleton
       contentArea.innerHTML = `
         <div class="animate-in">
-          <div class="card-glow rounded-2xl p-5 mb-3">
+          <div class="card-glow relative rounded-2xl p-5 mb-3">
             <div class="shimmer-bg h-5 w-3/4 rounded-lg mb-4"></div>
             <div class="shimmer-bg h-3 w-full rounded mb-2"></div>
             <div class="shimmer-bg h-3 w-5/6 rounded mb-2"></div>
@@ -358,208 +326,136 @@
       `;
 
       try {
-        let rawText = inputUrl;
-        let urlType = 'news';
+        let rawText = textInput;
+        let urlType = 'manual';
+        let sourceUrl = linkedUrl || '';
 
-        if (!isManualText) {
-          urlType = detectUrl(inputUrl);
-          const isVideo = urlType !== 'news';
+        if (mode === 'url') {
+          const platform = detectPlatform(textInput);
+          urlType = platform;
 
-          if (!urlType) { showToast('链接格式不正确', 'error'); throw new Error('invalid url'); }
-
-          if (!isVideo) {
-            // News URL — use Jina Reader
+          if (platform === 'news') {
             inputHint.textContent = '正在抓取新闻内容...';
-            rawText = await fetchPageContent(inputUrl);
+            rawText = await fetchNews(textInput);
+            sourceUrl = textInput;
           } else {
-            // Video URL — try Jina Reader first
-            inputHint.textContent = '正在抓取视频页面信息...';
-
-            let metaText = '';
-            try {
-              metaText = await fetchPageMeta(inputUrl);
-              if (metaText && metaText.length > 100) {
-                rawText = metaText;
-              } else {
-                throw new Error('content too short');
-              }
-            } catch {
-              // Video content can't be auto-fetched — stop and ask user
-              isAnalyzing = false;
-              analyzeBtn.disabled = false;
-              btnText.textContent = '拆解';
-              manualArea.classList.remove('hidden');
-              manualText.focus();
-              inputHint.textContent = '需要你粘贴视频文案来辅助分析';
-
-              contentArea.innerHTML = `
-                <div class="animate-in card-glow rounded-2xl p-6 text-center">
-                  <div class="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
-                    <i class="lucide-video text-amber-400 text-2xl"></i>
-                  </div>
-                  <h3 class="text-sm font-medium text-white/80 mb-2">无法自动抓取视频内容</h3>
-                  <p class="text-xs text-white/40 leading-relaxed mb-1">
-                    抖音/B站等视频平台无法直接提取文案。
-                  </p>
-                  <p class="text-xs text-white/40 leading-relaxed mb-5">
-                    请在下方文本框粘贴视频的 <span class="text-amber-400/80">描述文案</span> 或 <span class="text-amber-400/80">字幕文本</span>，然后点"用此文案分析"。
-                  </p>
-                  <div class="bg-white/5 rounded-xl p-3 text-left">
-                    <p class="text-[10px] text-white/30 mb-1">💡 获取文案的方法</p>
-                    <p class="text-xs text-white/50 leading-relaxed">
-                      在抖音 App 打开视频 → 点分享 → 复制链接/文案 → 粘贴到下方文本框
-                    </p>
-                  </div>
-                </div>
-              `;
-              return;
-            }
+            // Video URL — go straight to manual input screen
+            showVideoInput(platform, textInput);
+            isAnalyzing = false; analyzeBtn.disabled = false; btnText.textContent = '拆解';
+            inputHint.textContent = '支持新闻 / 抖音 / B站 / YouTube 链接';
+            return;
           }
         } else {
-          // Manual text input
-          rawText = sourceText;
-          urlType = 'manual';
+          // Manual / description mode
+          urlType = mode === 'video_desc' ? detectPlatform(linkedUrl || '') || 'video' : 'manual';
+          sourceUrl = linkedUrl || '';
         }
 
-        if (isAnalyzing === false) return; // cancelled
+        if (rawText.length > 8000) rawText = rawText.slice(0, 8000) + '\n[截断]';
+        inputHint.textContent = 'AI 正在分析...';
 
-        // Truncate
-        if (rawText.length > 8000) rawText = rawText.slice(0, 8000) + '\n[内容过长已截断]';
-
-        // If content is too short and it's a video, warn but still proceed
-        if (rawText.length < 50 && !isManualText) {
-          inputHint.textContent = '抓取到的内容较少，AI 将基于有限信息分析';
-        }
-
-        inputHint.textContent = 'AI 正在拆解分析...';
-        const aiResult = await callAI(SYSTEM_PROMPT,
-          `链接：${inputUrl}\n类型：${PLATFORM_NAMES[urlType] || '手动输入'}\n\n内容：\n${rawText}`
-        );
-
+        const aiResult = await callAI(SYSTEM_PROMPT, `链接：${sourceUrl}\n类型：${PNAME[urlType]||'手动输入'}\n\n内容：\n${rawText}`);
         const parsed = parseAI(aiResult);
-        renderResult(inputUrl, urlType, parsed, rawText);
-        showToast('拆解完成', 'success');
+
+        // Render result
+        renderResult(sourceUrl, urlType, parsed, rawText);
+        toast('拆解完成', 'success');
 
       } catch (err) {
-        if (err.message === 'invalid url') return;
         contentArea.innerHTML = `
-          <div class="animate-in card-glow rounded-2xl p-6 text-center">
+          <div class="animate-in card-glow relative rounded-2xl p-6 text-center">
             <div class="w-12 h-12 rounded-2xl bg-red-500/10 flex items-center justify-center mx-auto mb-3">
               <i class="lucide-alert-circle text-red-400 text-xl"></i>
             </div>
-            <h3 class="text-sm font-medium text-white/80 mb-1">分析出错了</h3>
-            <p class="text-xs text-white/40 leading-relaxed mb-4">${escapeHtml(err.message || '请检查链接或 API 配置')}</p>
-            <button onclick="switchTab('grab')" class="h-9 px-4 text-xs font-medium bg-white/10 hover:bg-white/15 text-white/60 rounded-lg transition-all">
-              重试
-            </button>
+            <h3 class="text-sm font-medium text-white/80 mb-1">出错了</h3>
+            <p class="text-xs text-white/40 leading-relaxed mb-4">${esc(err.message)}</p>
+            <button onclick="showHome()" class="h-9 px-4 text-xs font-medium bg-white/10 hover:bg-white/15 text-white/60 rounded-lg transition-all">重试</button>
           </div>
         `;
-        showToast(err.message || '分析失败', 'error');
+        toast(err.message, 'error');
       } finally {
         isAnalyzing = false;
-        if (analyzeBtn) {
-          analyzeBtn.disabled = false;
-          btnText.textContent = '拆解';
-        }
+        analyzeBtn.disabled = false;
+        btnText.textContent = '拆解';
         inputHint.textContent = '支持新闻 / 抖音 / B站 / YouTube 链接';
       }
     }
 
     // ===== Render Result =====
     function renderResult(url, urlType, data, rawContent) {
-      lastUrl = url;
-      lastUrlType = urlType;
-
-      const typeLabel = PLATFORM_NAMES[urlType] || '手动输入';
-      const displayUrl = url && url.length > 45 ? url.slice(0, 45) + '...' : (url || '');
+      const typeLabel = PNAME[urlType] || '手动';
+      const displayUrl = url && url.length > 45 ? url.slice(0,45)+'...' : (url||'');
 
       contentArea.innerHTML = `
         <div class="animate-in">
           <div class="flex items-center gap-2 mb-3">
             <span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/10 text-white/60">${typeLabel}</span>
-            ${displayUrl ? `<span class="text-[10px] text-white/30 truncate flex-1">${escapeHtml(displayUrl)}</span>` : ''}
+            ${displayUrl ? `<span class="text-[10px] text-white/30 truncate flex-1">${esc(displayUrl)}</span>` : ''}
           </div>
 
-          <div class="card-glow rounded-2xl p-5 mb-3">
-            <h2 class="text-base font-bold leading-snug text-white/90">${escapeHtml(data.title || '选题分析')}</h2>
+          <div class="card-glow relative rounded-2xl p-5 mb-3">
+            <h2 class="text-base font-bold leading-snug text-white/90">${esc(data.title||'选题分析')}</h2>
           </div>
 
-          <div class="card-glow rounded-2xl p-5 mb-3">
+          <div class="card-glow relative rounded-2xl p-5 mb-3">
             <div class="flex items-center gap-2 mb-3">
               <i class="lucide-file-text text-white/40 text-sm"></i>
-              <span class="text-[11px] font-medium text-white/40 uppercase tracking-wider">核心事实摘要</span>
+              <span class="text-[11px] font-medium text-white/40 uppercase tracking-wider">核心摘要</span>
             </div>
-            <p class="text-sm text-white/70 leading-relaxed">${escapeHtml(data.summary || '—')}</p>
+            <p class="text-sm text-white/70 leading-relaxed">${esc(data.summary||'—')}</p>
           </div>
 
-          <div class="card-glow rounded-2xl p-5 mb-3">
+          <div class="card-glow relative rounded-2xl p-5 mb-3">
             <div class="flex items-center gap-2 mb-3">
               <i class="lucide-flame text-white/40 text-sm"></i>
               <span class="text-[11px] font-medium text-white/40 uppercase tracking-wider">爆点分析</span>
             </div>
-            <p class="text-sm text-white/70 leading-relaxed">${escapeHtml(data.hotAnalysis || '—')}</p>
+            <p class="text-sm text-white/70 leading-relaxed">${esc(data.hotAnalysis||'—')}</p>
           </div>
 
-          <div class="card-glow rounded-2xl p-5 mb-4">
+          <div class="card-glow relative rounded-2xl p-5 mb-4">
             <div class="flex items-center gap-2 mb-3">
               <i class="lucide-crosshair text-white/40 text-sm"></i>
               <span class="text-[11px] font-medium text-white/40 uppercase tracking-wider">发帖切入点</span>
             </div>
-            <div class="space-y-2.5">
-              ${(data.angles || ['—']).map((angle, i) => `
-                <div class="flex items-start gap-3">
-                  <span class="w-5 h-5 rounded-full bg-white/10 text-white/50 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">${i + 1}</span>
-                  <p class="text-sm text-white/70 leading-relaxed">${escapeHtml(angle)}</p>
-                </div>
-              `).join('')}
-            </div>
+            ${(data.angles||['—']).map((a,i)=>`
+              <div class="flex items-start gap-3 ${i>0?'mt-2.5':''}">
+                <span class="w-5 h-5 rounded-full bg-white/10 text-white/50 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">${i+1}</span>
+                <p class="text-sm text-white/70 leading-relaxed">${esc(a)}</p>
+              </div>
+            `).join('')}
           </div>
 
           <div class="flex gap-2 mb-6">
-            <button id="saveBtn"
-              class="flex-1 h-10 text-xs font-medium bg-white/10 hover:bg-white/15 text-white/80 rounded-xl transition-all flex items-center justify-center gap-1.5">
-              <i class="lucide-bookmark text-sm"></i>
-              保存到选题库
+            <button id="saveBtn" class="flex-1 h-10 text-xs font-medium bg-white/10 hover:bg-white/15 text-white/80 rounded-xl transition-all flex items-center justify-center gap-1.5">
+              <i class="lucide-bookmark text-sm"></i> 保存到选题库
             </button>
-            <button id="copyBtn"
-              class="flex-1 h-10 text-xs font-medium bg-white text-black rounded-xl hover:bg-white/90 transition-all flex items-center justify-center gap-1.5">
-              <i class="lucide-copy text-sm"></i>
-              一键复制文案
+            <button id="copyBtn" class="flex-1 h-10 text-xs font-medium bg-white text-black rounded-xl hover:bg-white/90 transition-all flex items-center justify-center gap-1.5">
+              <i class="lucide-copy text-sm"></i> 复制文案
             </button>
           </div>
         </div>
       `;
 
-      // Wire save/copy buttons
-      document.getElementById('saveBtn').addEventListener('click', () => {
-        saveToLib({
-          url, urlType, title: data.title, summary: data.summary,
-          hotAnalysis: data.hotAnalysis, angles: data.angles,
-          rawContent: rawContent || '',
-        });
-      });
+      document.getElementById('saveBtn').onclick = () => {
+        const lib = getLib();
+        lib.unshift({ id:Date.now(), savedAt:new Date().toLocaleString('zh-CN'), url, urlType, title:data.title, summary:data.summary, hotAnalysis:data.hotAnalysis, angles:data.angles, rawContent });
+        saveLib(lib);
+        updateLibBadge();
+        toast('已保存到选题库', 'success');
+      };
 
-      document.getElementById('copyBtn').addEventListener('click', () => {
-        const text = [
-          `📌 ${data.title || ''}`,
-          '',
-          `📋 核心摘要：${data.summary || ''}`,
-          '',
-          `🔥 爆点分析：${data.hotAnalysis || ''}`,
-          '',
-          `💡 发帖切入点：`,
-          ...(data.angles || []).map((a, i) => `  ${i+1}. ${a}`),
-        ].join('\n');
-        navigator.clipboard.writeText(text).then(
-          () => showToast('文案已复制到剪贴板', 'success'),
-          () => showToast('复制失败，请手动复制', 'error')
-        );
-      });
+      document.getElementById('copyBtn').onclick = () => {
+        const txt = [`📌 ${data.title||''}`,'',`📋 摘要：${data.summary||''}`,'',`🔥 爆点：${data.hotAnalysis||''}`,'',`💡 切入点：`].concat((data.angles||[]).map((a,i)=>`  ${i+1}. ${a}`)).join('\n');
+        navigator.clipboard.writeText(txt).then(()=>toast('已复制','success'),()=>toast('复制失败','error'));
+      };
     }
 
-    // ===== Library View =====
+    // ===== Library =====
     function renderLibrary() {
       const lib = getLib();
+      updateLibBadge();
+
       if (lib.length === 0) {
         contentArea.innerHTML = `
           <div class="pt-16 text-center">
@@ -578,140 +474,82 @@
           <h3 class="text-sm font-medium text-white/60">选题库</h3>
           <span class="text-[10px] text-white/30">共 ${lib.length} 条</span>
         </div>
-        ${lib.map((item, idx) => `
-          <div class="animate-in card-glow rounded-2xl p-4 mb-3" style="animation-delay: ${idx * 0.05}s">
+        ${lib.map((item,i)=>`
+          <div class="animate-in card-glow relative rounded-2xl p-4 mb-3" style="animation-delay:${i*0.05}s">
             <div class="flex items-center gap-2 mb-2">
-              <span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/10 text-white/50">${PLATFORM_NAMES[item.urlType] || item.urlType || '链接'}</span>
-              <span class="text-[10px] text-white/20">${item.savedAt || ''}</span>
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/10 text-white/50">${PNAME[item.urlType]||item.urlType||'链接'}</span>
+              <span class="text-[10px] text-white/20">${item.savedAt||''}</span>
             </div>
-            <h4 class="text-sm font-medium text-white/80 leading-snug mb-2 line-clamp-2">${escapeHtml(item.title || '无标题')}</h4>
-            <p class="text-xs text-white/40 leading-relaxed line-clamp-2 mb-3">${escapeHtml(item.summary || '')}</p>
+            <h4 class="text-sm font-medium text-white/80 leading-snug mb-2 line-clamp-2">${esc(item.title||'无标题')}</h4>
+            <p class="text-xs text-white/40 leading-relaxed line-clamp-2 mb-3">${esc(item.summary||'')}</p>
             <div class="flex gap-2">
-              <button data-view-idx="${idx}"
-                class="view-btn flex-1 h-8 text-[11px] font-medium bg-white/10 hover:bg-white/15 text-white/60 rounded-lg transition-all">
-                查看详情
-              </button>
-              <button data-remove-id="${item.id}"
-                class="remove-btn h-8 px-3 text-[11px] font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400/60 rounded-lg transition-all">
-                删除
-              </button>
+              <button data-i="${i}" class="view-btn flex-1 h-8 text-[11px] font-medium bg-white/10 hover:bg-white/15 text-white/60 rounded-lg transition-all">查看详情</button>
+              <button data-id="${item.id}" class="del-btn h-8 px-3 text-[11px] font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400/60 rounded-lg transition-all">删除</button>
             </div>
           </div>
         `).join('')}
       `;
 
-      // Wire events
-      contentArea.querySelectorAll('.view-btn').forEach(btn => {
-        btn.addEventListener('click', () => viewLibraryItem(parseInt(btn.dataset.viewIdx)));
+      contentArea.querySelectorAll('.view-btn').forEach(b => b.onclick = () => {
+        const item = getLib()[parseInt(b.dataset.i)];
+        if (!item) return;
+        renderResult(item.url, item.urlType, item, item.rawContent);
+        const wrap = contentArea.firstChild;
+        if (wrap) {
+          const back = document.createElement('div');
+          back.className = 'mb-3';
+          back.innerHTML = '<button id="backBtn" class="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/60 transition-colors"><i class="lucide-arrow-left text-sm"></i>返回选题库</button>';
+          wrap.insertBefore(back, wrap.firstChild);
+          document.getElementById('backBtn').onclick = renderLibrary;
+        }
+        const sb = document.getElementById('saveBtn');
+        if (sb) { sb.innerHTML = '<i class="lucide-check text-sm"></i> 已保存'; sb.disabled = true; sb.className = 'flex-1 h-10 text-xs font-medium bg-white/5 text-white/30 rounded-xl flex items-center justify-center gap-1.5 cursor-not-allowed'; }
       });
-      contentArea.querySelectorAll('.remove-btn').forEach(btn => {
-        btn.addEventListener('click', () => { removeFromLib(parseInt(btn.dataset.removeId)); renderLibrary(); });
-      });
-    }
 
-    function viewLibraryItem(idx) {
-      const lib = getLib();
-      const item = lib[idx];
-      if (!item) return;
-
-      renderResult(item.url, item.urlType, item, item.rawContent);
-
-      // Add back button
-      const wrapper = contentArea.firstChild;
-      if (wrapper) {
-        const back = document.createElement('div');
-        back.className = 'mb-3';
-        back.innerHTML = `<button id="backToLibBtn" class="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/60 transition-colors"><i class="lucide-arrow-left text-sm"></i>返回选题库</button>`;
-        wrapper.insertBefore(back, wrapper.firstChild);
-        document.getElementById('backToLibBtn').addEventListener('click', renderLibrary);
-      }
-
-      // Override save btn to avoid duplicate
-      const saveBtn = document.getElementById('saveBtn');
-      if (saveBtn) {
-        saveBtn.innerHTML = '<i class="lucide-check text-sm"></i> 已保存';
-        saveBtn.disabled = true;
-        saveBtn.className = 'flex-1 h-10 text-xs font-medium bg-white/5 text-white/30 rounded-xl flex items-center justify-center gap-1.5 cursor-not-allowed';
-      }
-    }
-
-    // ===== Tabs =====
-    function switchTab(tab) {
-      tabGrab.classList.toggle('tab-active', tab === 'grab');
-      tabLibrary.classList.toggle('tab-active', tab === 'library');
-      if (tab === 'library') {
+      contentArea.querySelectorAll('.del-btn').forEach(b => b.onclick = () => {
+        const lib = getLib().filter(i => i.id !== parseInt(b.dataset.id));
+        saveLib(lib);
+        toast('已移除', 'info');
         renderLibrary();
-      } else {
-        // Show recent result or empty state
-        if (contentArea.querySelector('[id="saveBtn"]')) {
-          // Result already showing
-        } else {
-          contentArea.innerHTML = `
-            <div class="pt-16 text-center">
-              <div class="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-4">
-                <i class="lucide-link-2 text-white/20 text-2xl"></i>
-              </div>
-              <h3 class="text-sm font-medium text-white/40 mb-1">粘贴链接开始拆解</h3>
-              <p class="text-xs text-white/20">支持新闻、抖音、B站、YouTube等链接</p>
-            </div>
-          `;
-        }
-        manualArea.classList.add('hidden');
-      }
+      });
     }
 
-    // ===== Event Bindings =====
-    analyzeBtn.addEventListener('click', () => handleAnalyze());
-    urlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleAnalyze(); });
+    // ===== Tab Switch =====
+    function switchTab(tab) {
+      tabGrab.classList.toggle('tab-active', tab ==='grab');
+      tabLibrary.classList.toggle('tab-active', tab ==='library');
+      if (tab === 'library') renderLibrary();
+    }
 
-    manualAnalyzeBtn.addEventListener('click', () => {
-      const text = manualText.value.trim();
-      if (!text) { showToast('请先粘贴文案', 'error'); return; }
-      handleAnalyze(text, 'manual');
-    });
-
-    hideManualBtn.addEventListener('click', () => {
-      manualArea.classList.add('hidden');
-    });
-
-    // Show manual area when video URL is detected in input
-    urlInput.addEventListener('input', () => {
+    // ===== Events =====
+    analyzeBtn.onclick = async () => {
       const url = urlInput.value.trim();
-      if (url) {
-        const t = detectUrl(url);
-        if (t && t !== 'news') {
-          manualArea.classList.remove('hidden');
-          inputHint.textContent = '检测到视频链接，可粘贴文案辅助分析';
-        } else {
-          manualArea.classList.add('hidden');
-          inputHint.textContent = '支持新闻 / 抖音 / B站 / YouTube 链接';
-        }
-      } else {
-        manualArea.classList.add('hidden');
-      }
-    });
+      if (!url) { toast('请粘贴链接', 'error'); return; }
+      await doAnalyze(url, 'url', '');
+    };
 
-    tabGrab.addEventListener('click', () => switchTab('grab'));
-    tabLibrary.addEventListener('click', () => switchTab('library'));
+    urlInput.onkeydown = (e) => { if (e.key === 'Enter') analyzeBtn.click(); };
 
-    // ===== Utility =====
-    function escapeHtml(str) {
-      if (!str) return '';
-      const d = document.createElement('div');
-      d.textContent = str;
-      return d.innerHTML;
-    }
+    tabGrab.onclick = () => switchTab('grab');
+    tabLibrary.onclick = () => switchTab('library');
 
     // ===== Init =====
-    contentArea.innerHTML = `
-      <div class="pt-16 text-center">
-        <div class="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-4">
-          <i class="lucide-link-2 text-white/20 text-2xl"></i>
+    if (!API_KEY_OK) {
+      contentArea.innerHTML = `
+        <div class="animate-in pt-8">
+          <div class="card-glow relative rounded-2xl p-5 text-center">
+            <div class="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-3">
+              <i class="lucide-settings-2 text-amber-400 text-xl"></i>
+            </div>
+            <h3 class="text-sm font-medium text-white/80 mb-1">需要配置 API Key</h3>
+            <p class="text-xs text-white/40">请在代码中填写 DEEPSEEK_API_KEY</p>
+          </div>
         </div>
-        <h3 class="text-sm font-medium text-white/40 mb-1">粘贴链接开始拆解</h3>
-        <p class="text-xs text-white/20">支持新闻、抖音、B站、YouTube等链接</p>
-      </div>
-    `;
+      `;
+    } else {
+      showHome();
+    }
+    updateLibBadge();
   </script>
 </body>
 </html>
