@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>选题拆解器</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/lucide-static@0.344.0/font/lucide.css" rel="stylesheet">
+  <style>
+    /* ========== 需要填写的 API Key ==========
+     * 1. DEEPSEEK_API — AI 分析功能
+     *    注册: https://platform.deepseek.com/api_keys
+     *    填在下面 JS 的 DEEPSEEK_API_KEY 处
+     *
+     * 2. JINA_API_KEY (选填) — 网页内容抓取
+     *    Jina Reader 免费版不需要 key
+     *    如果需要付费版: https://jina.ai/reader/
+     * ======================================== */
+
+    * { -webkit-tap-highlight-color: transparent; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC",
+        "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      background: #0a0a0b;
+      color: #f5f5f7;
+      overscroll-behavior: none;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 0; }
+
+    /* Animations */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.8; } }
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+
+    .animate-in { animation: fadeInUp 0.3s ease-out both; }
+    .animate-spin { animation: spin 0.8s linear infinite; }
+    .animate-pulse { animation: pulse 2s ease-in-out infinite; }
+
+    .card-glow {
+      position: relative;
+      background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .card-glow::before {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: inherit;
+      padding: 1px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.08), transparent 50%);
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+
+    .shimmer-bg {
+      background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.06) 50%, rgba(255,255,255,0.03) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s ease-in-out infinite;
+    }
+
+    .tab-active {
+      position: relative;
+      color: #f5f5f7;
+    }
+    .tab-active::after {
+      content: '';
+      position: absolute;
+      bottom: -2px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 20px;
+      height: 2px;
+      border-radius: 1px;
+      background: #f5f5f7;
+    }
+
+    /* Hide scrollbar for collection list */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* Toast */
+    .toast-enter {
+      animation: fadeInUp 0.25s ease-out;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" class="flex flex-col h-dvh max-w-lg mx-auto relative overflow-hidden">
+    <!-- ===== Header ===== -->
+    <header class="px-5 pt-5 pb-3 shrink-0">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center">
+          <i class="lucide-sparkles text-white text-lg"></i>
+        </div>
+        <div>
+          <h1 class="text-base font-bold tracking-tight">选题拆解器</h1>
+          <p class="text-[11px] text-white/40 mt-0.5">粘贴链接 · AI 拆解 · 一键保存</p>
+        </div>
+      </div>
+    </header>
+
+    <!-- ===== Input Area ===== -->
+    <div class="px-5 pb-3 shrink-0">
+      <div class="relative">
+        <input id="urlInput"
+          type="url"
+          placeholder="粘贴新闻或视频链接..."
+          class="w-full h-11 pl-4 pr-24 text-sm bg-white/5 border border-white/10 rounded-xl
+                 focus:outline-none focus:border-white/20 focus:bg-white/[0.07] transition-all
+                 placeholder:text-white/20 text-white/80"
+          autocomplete="off"
+        />
+        <button id="analyzeBtn"
+          class="absolute right-1 top-1 bottom-1 px-3.5 text-xs font-medium
+                 bg-white text-black rounded-lg hover:bg-white/90 transition-all
+                 flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <i class="lucide-wand-2 text-sm"></i>
+          <span id="btnText">拆解</span>
+        </button>
+      </div>
+      <p id="inputHint" class="text-[10px] text-white/20 mt-1.5 px-1">
+        支持新闻链接 · 抖音/B站/YouTube 视频链接
+      </p>
+    </div>
+
+    <!-- ===== Content Area ===== -->
+    <main class="flex-1 overflow-y-auto no-scrollbar px-5 pb-4">
+      <div id="contentArea">
+        <!-- Dynamic content rendered here -->
+      </div>
+    </main>
+
+    <!-- ===== Bottom Tabs ===== -->
+    <div class="shrink-0 border-t border-white/5 bg-[#0a0a0b]">
+      <div class="flex items-center justify-around py-2.5 max-w-lg mx-auto">
+        <button id="tabGrab" class="tab-btn flex items-center gap-1.5 text-xs text-white/40 transition-colors tab-active">
+          <i class="lucide-link-2 text-base"></i>
+          <span>素材抓取</span>
+        </button>
+        <button id="tabLibrary" class="tab-btn flex items-center gap-1.5 text-xs text-white/40 transition-colors">
+          <i class="lucide-bookmark text-base"></i>
+          <span>选题库</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Toast Container ===== -->
+  <div id="toastContainer" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 pointer-events-none"></div>
+
+  <script>
+    // ================================================================
+    // ★★★ 在这里填写你的 API Key ★★★
+    // ================================================================
+
+    // DeepSeek API Key (必填，用于 AI 分析)
+    // 注册: https://platform.deepseek.com/api_keys
+    const DEEPSEEK_API_KEY = 'sk-e38c534d7b204e62922326b5c3b683e1';
+
+    // Jina Reader 免费接口（不需要 Key，如果无法访问请替换为其他网页抓取服务）
+    const JINA_READER_URL = 'https://r.jina.ai';
+
+    // ================================================================
+    // 以下代码不需要修改
+    // ================================================================
+
+    const DEEPSEEK_API = 'https://api.deepseek.com/v1/chat/completions';
+
+    // DOM refs
+    const urlInput = document.getElementById('urlInput');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const btnText = document.getElementById('btnText');
+    const contentArea = document.getElementById('contentArea');
+    const tabGrab = document.getElementById('tabGrab');
+    const tabLibrary = document.getElementById('tabLibrary');
+    const toastContainer = document.getElementById('toastContainer');
+    const inputHint = document.getElementById('inputHint');
+
+    // State
+    let currentTab = 'grab';
+    let isAnalyzing = false;
+
+    // ===== Toast =====
+    function showToast(msg, type = 'success') {
+      const colors = {
+        success: 'bg-green-500/20 text-green-300 border-green-500/20',
+        error: 'bg-red-500/20 text-red-300 border-red-500/20',
+        info: 'bg-blue-500/20 text-blue-300 border-blue-500/20',
+      };
+      const icons = {
+        success: 'check-circle',
+        error: 'x-circle',
+        info: 'info',
+      };
+      const el = document.createElement('div');
+      el.className = `toast-enter px-4 py-2.5 rounded-xl text-xs border backdrop-blur-lg ${colors[type] || colors.info} flex items-center gap-2 pointer-events-auto`;
+      el.innerHTML = `<i class="lucide-${icons[type]} text-sm"></i>${msg}`;
+      toastContainer.appendChild(el);
+      setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(() => el.remove(), 300); }, 2200);
+    }
+
+    // ===== Library (localStorage) =====
+    function getLibrary() {
+      try { return JSON.parse(localStorage.getItem('creator-library') || '[]'); } catch { return []; }
+    }
+    function saveToLibrary(item) {
+      const lib = getLibrary();
+      lib.unshift({ ...item, id: Date.now(), savedAt: new Date().toLocaleString('zh-CN') });
+      localStorage.setItem('creator-library', JSON.stringify(lib));
+      showToast('已保存到选题库', 'success');
+    }
+    function removeFromLibrary(id) {
+      const lib = getLibrary().filter(i => i.id !== id);
+      localStorage.setItem('creator-library', JSON.stringify(lib));
+      showToast('已从选题库移除', 'info');
+    }
+
+    // ===== URL Detection =====
+    function detectUrlType(url) {
+      try { new URL(url); } catch { return null; }
+      const patterns = [
+        { type: 'douyin', match: /(douyin\.com|iesdouyin\.com)/i },
+        { type: 'bilibili', match: /bilibili\.com/i },
+        { type: 'youtube', match: /(youtube\.com|youtu\.be)/i },
+        { type: 'kuaishou', match: /kuaishou\.com/i },
+        { type: 'weibo', match: /weibo\.com/i },
+        { type: 'xhs', match: /(xiaohongshu\.com|xhslink\.com)/i },
+      ];
+      for (const p of patterns) { if (p.match.test(url)) return p.type; }
+      return 'news'; // default to news
+    }
+
+    // ===== Jina Reader =====
+    async function fetchWebContent(url) {
+      const res = await fetch(`${JINA_READER_URL}/${encodeURI(url)}`, {
+        headers: { 'Accept': 'text/plain', 'X-With-Links-Summary': 'true' },
+      });
+      if (!res.ok) throw new Error(`抓取失败 (${res.status})`);
+      return await res.text();
+    }
+
+    // ===== DeepSeek AI =====
+    async function callAI(system, userMsg) {
+      const res = await fetch(DEEPSEEK_API, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: userMsg },
+          ],
+          max_tokens: 1500,
+          stream: false,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.text().catch(() => '');
+        throw new Error(`AI 请求失败 (${res.status}): ${err.slice(0, 100)}`);
+      }
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content || '';
+    }
+
+    // ===== AI Prompt =====
+    const SYSTEM_PROMPT = `你是一个自媒体爆款教练。请分析以下输入的素材（新闻内容或视频文案），为创作者输出一份发帖指南。
+
+请严格按照以下 JSON 格式输出，不要包含其他内容：
+{
+  "title": "吸引眼球的标题建议",
+  "summary": "核心事实摘要（150字以内，一目了然发生了什么）",
+  "hotAnalysis": "爆点分析（为什么这个话题能火？抓住了大众什么心理？）",
+  "angles": [
+    "角度1: 针对不同 IP 定位的发帖切入点",
+    "角度2: 针对不同 IP 定位的发帖切入点",
+    "角度3: 针对不同 IP 定位的发帖切入点"
+  ]
+}
+
+要求：
+- summary 简明扼要，直击核心
+- hotAnalysis 分析情绪共鸣点、冲突点、传播动力
+- angles 给出 3 个不同的写帖/发视频视角，每个角度包含吸睛标题建议`;
+
+    // ===== Analyze =====
+    async function handleAnalyze() {
+      const url = urlInput.value.trim();
+      if (!url) { showToast('请先粘贴链接', 'error'); return; }
+      if (!DEEPSEEK_API_KEY || DEEPSEEK_API_KEY === 'your_deepseek_api_key_here') {
+        showToast('请先在代码中填写 DeepSeek API Key', 'error');
+        return;
+      }
+      if (isAnalyzing) return;
+
+      const urlType = detectUrlType(url);
+      if (!urlType) { showToast('链接格式不正确', 'error'); return; }
+
+      isAnalyzing = true;
+      analyzeBtn.disabled = true;
+      btnText.textContent = '分析中...';
+
+      // Show loading skeleton
+      contentArea.innerHTML = `
+        <div class="animate-in">
+          <div class="card-glow rounded-2xl p-5 mb-3">
+            <div class="shimmer-bg h-5 w-3/4 rounded-lg mb-4"></div>
+            <div class="shimmer-bg h-3 w-full rounded mb-2"></div>
+            <div class="shimmer-bg h-3 w-5/6 rounded mb-2"></div>
+            <div class="shimmer-bg h-3 w-2/3 rounded mb-4"></div>
+            <div class="shimmer-bg h-3 w-full rounded mb-2"></div>
+            <div class="shimmer-bg h-3 w-4/5 rounded"></div>
+          </div>
+        </div>
+      `;
+
+      try {
+        let rawText = '';
+
+        if (urlType === 'news') {
+          inputHint.textContent = '正在抓取新闻内容...';
+          rawText = await fetchWebContent(url);
+        } else {
+          // Video URL — show guidance
+          contentArea.innerHTML = `
+            <div class="animate-in card-glow rounded-2xl p-5 text-center">
+              <div class="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-3">
+                <i class="lucide-video text-amber-400 text-xl"></i>
+              </div>
+              <h3 class="text-sm font-medium text-white/80 mb-2">检测到视频链接</h3>
+              <p class="text-xs text-white/40 leading-relaxed mb-4">
+                视频自动文案提取需要第三方解析 API。<br>
+                当前已提取链接作为参考文本，AI 将基于可获取的内容进行分析。
+              </p>
+              <div class="bg-white/5 rounded-xl p-3 text-left mb-3">
+                <p class="text-[10px] text-white/30 mb-1">检测到的平台</p>
+                <p class="text-xs text-white/60">
+                  ${({douyin:'抖音',bilibili:'B站',youtube:'YouTube',kuaishou:'快手',weibo:'微博',xhs:'小红书',news:'网页'})[urlType] || urlType}
+                </p>
+              </div>
+            </div>
+          `;
+          // Try to fetch anyway (might get page metadata)
+          inputHint.textContent = '正在抓取页面信息...';
+          try {
+            rawText = await fetchWebContent(url);
+          } catch {
+            rawText = `[视频链接] ${url}\n[平台] ${urlType}`;
+          }
+        }
+
+        inputHint.textContent = 'AI 正在拆解分析...';
+
+        // Truncate if too long
+        if (rawText.length > 8000) rawText = rawText.slice(0, 8000) + '\n[内容过长已截断]';
+
+        const aiResult = await callAI(SYSTEM_PROMPT,
+          `链接：${url}\n链接类型：${urlType === 'news' ? '新闻' : '视频'}\n\n内容：\n${rawText}`
+        );
+
+        let parsed;
+        try {
+          parsed = JSON.parse(aiResult);
+        } catch {
+          // Try to extract JSON from markdown code block
+          const match = aiResult.match(/```(?:json)?\s*([\s\S]*?)```/);
+          if (match) {
+            parsed = JSON.parse(match[1]);
+          } else {
+            throw new Error('AI 返回格式异常');
+          }
+        }
+
+        renderResult(url, urlType, parsed);
+        showToast('拆解完成', 'success');
+
+      } catch (err) {
+        console.error(err);
+        contentArea.innerHTML = `
+          <div class="animate-in card-glow rounded-2xl p-6 text-center">
+            <div class="w-12 h-12 rounded-2xl bg-red-500/10 flex items-center justify-center mx-auto mb-3">
+              <i class="lucide-alert-circle text-red-400 text-xl"></i>
+            </div>
+            <h3 class="text-sm font-medium text-white/80 mb-1">分析出错了</h3>
+            <p class="text-xs text-white/40 leading-relaxed">${err.message || '请检查链接或 API 配置'}</p>
+          </div>
+        `;
+        showToast(err.message || '分析失败', 'error');
+      } finally {
+        isAnalyzing = false;
+        analyzeBtn.disabled = false;
+        btnText.textContent = '拆解';
+        inputHint.textContent = '支持新闻链接 · 抖音/B站/YouTube 视频链接';
+      }
+    }
+
+    // ===== Render Result =====
+    function renderResult(url, urlType, data) {
+      const platformNames = { douyin:'抖音', bilibili:'B站', youtube:'YouTube', kuaishou:'快手', weibo:'微博', xhs:'小红书', news:'新闻' };
+      const typeLabel = platformNames[urlType] || '网页';
+
+      const resultHTML = `
+        <div class="animate-in" style="animation-delay: 0s">
+          <!-- Meta badge -->
+          <div class="flex items-center gap-2 mb-3">
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/10 text-white/60">${typeLabel}</span>
+            <span class="text-[10px] text-white/30 truncate flex-1">${url.length > 40 ? url.slice(0,40)+'...' : url}</span>
+          </div>
+
+          <!-- Title -->
+          <div class="card-glow rounded-2xl p-5 mb-3">
+            <h2 class="text-base font-bold leading-snug text-white/90">${escapeHtml(data.title || '选题分析')}</h2>
+          </div>
+
+          <!-- Summary -->
+          <div class="card-glow rounded-2xl p-5 mb-3">
+            <div class="flex items-center gap-2 mb-3">
+              <i class="lucide-file-text text-white/40 text-sm"></i>
+              <span class="text-[11px] font-medium text-white/40 uppercase tracking-wider">核心事实摘要</span>
+            </div>
+            <p class="text-sm text-white/70 leading-relaxed">${escapeHtml(data.summary || '')}</p>
+          </div>
+
+          <!-- Hot Analysis -->
+          <div class="card-glow rounded-2xl p-5 mb-3">
+            <div class="flex items-center gap-2 mb-3">
+              <i class="lucide-flame text-white/40 text-sm"></i>
+              <span class="text-[11px] font-medium text-white/40 uppercase tracking-wider">爆点分析</span>
+            </div>
+            <p class="text-sm text-white/70 leading-relaxed">${escapeHtml(data.hotAnalysis || '')}</p>
+          </div>
+
+          <!-- Angles -->
+          <div class="card-glow rounded-2xl p-5 mb-4">
+            <div class="flex items-center gap-2 mb-3">
+              <i class="lucide-crosshair text-white/40 text-sm"></i>
+              <span class="text-[11px] font-medium text-white/40 uppercase tracking-wider">发帖切入点</span>
+            </div>
+            <div class="space-y-2.5">
+              ${(data.angles || []).map((angle, i) => `
+                <div class="flex items-start gap-3">
+                  <span class="w-5 h-5 rounded-full bg-white/10 text-white/50 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">${i + 1}</span>
+                  <p class="text-sm text-white/70 leading-relaxed">${escapeHtml(angle)}</p>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex gap-2 mb-6">
+            <button onclick='saveCurrentResult()'
+              class="flex-1 h-10 text-xs font-medium bg-white/10 hover:bg-white/15 text-white/80 rounded-xl transition-all flex items-center justify-center gap-1.5">
+              <i class="lucide-bookmark text-sm"></i>
+              保存到选题库
+            </button>
+            <button onclick='copyResultText()'
+              class="flex-1 h-10 text-xs font-medium bg-white text-black rounded-xl hover:bg-white/90 transition-all flex items-center justify-center gap-1.5">
+              <i class="lucide-copy text-sm"></i>
+              一键复制文案
+            </button>
+          </div>
+        </div>
+      `;
+
+      contentArea.innerHTML = resultHTML;
+
+      // Store current result for save/copy
+      window.__currentResult = { url, urlType, ...data };
+      window.__currentResultHTML = resultHTML;
+    }
+
+    // ===== Save / Copy =====
+    window.saveCurrentResult = function() {
+      const r = window.__currentResult;
+      if (!r) return;
+      saveToLibrary({
+        url: r.url,
+        urlType: r.urlType,
+        title: r.title,
+        summary: r.summary,
+        hotAnalysis: r.hotAnalysis,
+        angles: r.angles,
+        _html: document.getElementById('contentArea')?.innerHTML || '',
+      });
+    };
+
+    window.copyResultText = function() {
+      const r = window.__currentResult;
+      if (!r) return;
+      const text = [
+        `📌 ${r.title}`,
+        '',
+        `📋 核心摘要：${r.summary}`,
+        '',
+        `🔥 爆点分析：${r.hotAnalysis}`,
+        '',
+        `💡 发帖切入点：`,
+        ...(r.angles || []).map((a, i) => `  ${i+1}. ${a}`),
+      ].join('\n');
+      navigator.clipboard.writeText(text).then(
+        () => showToast('文案已复制到剪贴板', 'success'),
+        () => showToast('复制失败，请手动复制', 'error')
+      );
+    };
+
+    // ===== Render Library =====
+    function renderLibrary() {
+      const lib = getLibrary();
+
+      if (lib.length === 0) {
+        contentArea.innerHTML = `
+          <div class="pt-16 text-center">
+            <div class="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-4">
+              <i class="lucide-bookmark text-white/20 text-2xl"></i>
+            </div>
+            <h3 class="text-sm font-medium text-white/40 mb-1">选题库还是空的</h3>
+            <p class="text-xs text-white/20">拆解素材后点击"保存到选题库"</p>
+          </div>
+        `;
+        return;
+      }
+
+      contentArea.innerHTML = `
+        <div class="flex items-center justify-between mb-4 animate-in">
+          <h3 class="text-sm font-medium text-white/60">选题库</h3>
+          <span class="text-[10px] text-white/30">共 ${lib.length} 条</span>
+        </div>
+        ${lib.map((item, idx) => `
+          <div class="animate-in card-glow rounded-2xl p-4 mb-3" style="animation-delay: ${idx * 0.05}s">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-white/10 text-white/50">
+                ${{douyin:'抖音',bilibili:'B站',youtube:'YouTube',kuaishou:'快手',weibo:'微博',xhs:'小红书',news:'新闻'}[item.urlType] || '网页'}
+              </span>
+              <span class="text-[10px] text-white/20">${item.savedAt || ''}</span>
+            </div>
+            <h4 class="text-sm font-medium text-white/80 leading-snug mb-2 line-clamp-2">${escapeHtml(item.title || '无标题')}</h4>
+            <p class="text-xs text-white/40 leading-relaxed line-clamp-2 mb-3">${escapeHtml(item.summary || '')}</p>
+            <div class="flex gap-2">
+              <button onclick='viewLibraryItem(${idx})'
+                class="flex-1 h-8 text-[11px] font-medium bg-white/10 hover:bg-white/15 text-white/60 rounded-lg transition-all">
+                查看详情
+              </button>
+              <button onclick='removeLibraryItem(${item.id})'
+                class="h-8 px-3 text-[11px] font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400/60 rounded-lg transition-all">
+                删除
+              </button>
+            </div>
+          </div>
+        `).join('')}
+      `;
+    }
+
+    window.viewLibraryItem = function(idx) {
+      const lib = getLibrary();
+      const item = lib[idx];
+      if (!item) return;
+
+      // Try to render from saved HTML or reconstruct
+      if (item._html) {
+        contentArea.innerHTML = `
+          <div class="animate-in">
+            <button onclick="renderLibrary()" class="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/60 mb-4 transition-colors">
+              <i class="lucide-arrow-left text-sm"></i>
+              返回选题库
+            </button>
+            ${item._html}
+          </div>
+        `;
+      } else {
+        renderResult(item.url, item.urlType, item);
+        // Override with back button
+        const firstChild = contentArea.firstChild;
+        if (firstChild) {
+          const backBtn = document.createElement('div');
+          backBtn.className = 'animate-in';
+          backBtn.innerHTML = `
+            <button onclick="renderLibrary()" class="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/60 mb-4 transition-colors">
+              <i class="lucide-arrow-left text-sm"></i>
+              返回选题库
+            </button>
+          `;
+          contentArea.insertBefore(backBtn, firstChild);
+        }
+      }
+    };
+
+    window.removeLibraryItem = function(id) {
+      removeFromLibrary(id);
+      renderLibrary();
+    };
+
+    // ===== Tabs =====
+    function switchTab(tab) {
+      currentTab = tab;
+      tabGrab.classList.toggle('tab-active', tab === 'grab');
+      tabLibrary.classList.toggle('tab-active', tab === 'library');
+
+      if (tab === 'library') {
+        renderLibrary();
+      } else {
+        // Show empty grab state or recent result
+        if (window.__currentResult) {
+          renderResult(window.__currentResult.url, window.__currentResult.urlType, window.__currentResult);
+        } else {
+          contentArea.innerHTML = `
+            <div class="pt-16 text-center">
+              <div class="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-4">
+                <i class="lucide-link-2 text-white/20 text-2xl"></i>
+              </div>
+              <h3 class="text-sm font-medium text-white/40 mb-1">粘贴链接开始拆解</h3>
+              <p class="text-xs text-white/20">支持新闻、抖音、B站、YouTube等链接</p>
+            </div>
+          `;
+        }
+      }
+    }
+
+    tabGrab.addEventListener('click', () => switchTab('grab'));
+    tabLibrary.addEventListener('click', () => switchTab('library'));
+
+    // ===== Events =====
+    analyzeBtn.addEventListener('click', handleAnalyze);
+    urlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleAnalyze(); });
+
+    // ===== Utility =====
+    function escapeHtml(str) {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    // ===== Init =====
+    switchTab('grab');
+
+    // Check API key
+    if (!DEEPSEEK_API_KEY || DEEPSEEK_API_KEY === 'your_deepseek_api_key_here') {
+      contentArea.innerHTML = `
+        <div class="animate-in pt-8">
+          <div class="card-glow rounded-2xl p-5 text-center">
+            <div class="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-3">
+              <i class="lucide-settings-2 text-amber-400 text-xl"></i>
+            </div>
+            <h3 class="text-sm font-medium text-white/80 mb-1">需要配置 API Key</h3>
+            <p class="text-xs text-white/40 leading-relaxed">
+              请在 HTML 文件的 JS 代码中找到 <code class="text-amber-400/80 bg-white/5 px-1 rounded">DEEPSEEK_API_KEY</code><br>
+              替换为你的 DeepSeek API Key
+            </p>
+          </div>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>
