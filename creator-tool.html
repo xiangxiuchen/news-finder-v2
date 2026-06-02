@@ -341,8 +341,13 @@
               throw new Error('未能提取到视频文案');
             }
 
+            if (pollData.status === 'no_transcript') {
+              // Apify couldn't extract audio - throw specific error to show manual input
+              throw new Error('NEED_MANUAL_INPUT');
+            }
+
             if (pollData.status === 'failed' || pollData.status === 'error') {
-              throw new Error('视频转录失败');
+              throw new Error('NEED_MANUAL_INPUT');
             }
             // else still 'processing' — keep polling
           } catch (e) {

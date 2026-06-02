@@ -84,7 +84,12 @@ async function pollApifyRun(runId: string): Promise<{ status: string; text?: str
       }
 
       if (result.trim().length > 20) return { status: 'completed', text: result.trim().slice(0, 10000) };
-      return { status: 'completed', text: `[抖音视频] ${record.title || record.caption || '内容已提取'}` };
+      // Check for explicit error
+      const errMsg = record.errMsg || '';
+      if (errMsg.includes('no audio') || errMsg.includes('no transcript')) {
+        return { status: 'no_transcript', error: errMsg, title: record.title || '', caption: record.caption || '' };
+      }
+      return { status: 'no_transcript', error: errMsg, title: record.title || '', caption: record.caption || '' };
     }
 
     if (runStatus === 'FAILED' || runStatus === 'TIMED-OUT' || runStatus === 'ABORTED') {
