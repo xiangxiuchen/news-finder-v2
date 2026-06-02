@@ -241,12 +241,12 @@
             </div>
             <h3 class="text-sm font-medium text-white/80 mb-1">检测到 ${PNAME[platform]||'视频'} 链接</h3>
             <p class="text-xs text-white/40 leading-relaxed mb-4">
-              视频平台无法自动提取文案<br>
-              请在下框中<strong class="text-white/60">粘贴视频的描述文字或你的想法</strong>
+              该平台无法自动提取视频文案<br>
+              请在下框粘贴视频的<strong class="text-white/60">描述文案或你的观后感</strong>
             </p>
             <textarea id="videoTextInput" rows="4"
               class="w-full text-sm bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white/70 resize-none leading-relaxed mb-3"
-              placeholder="粘贴视频文案&#10;或用自己的话描述视频内容...&#10;&#10;例如：这个视频讲的是一个人用AI工具一天做了100张图，月入5万..."></textarea>
+              placeholder="1. 去抖音App复制视频描述/文案&#10;2. 或用自己的话描述视频内容&#10;&#10;例如：这个视频讲的是一个人用AI工具一天做了100张图..."></textarea>
             <div class="flex gap-2">
               <button id="cancelVideoBtn"
                 class="flex-1 h-10 text-xs font-medium bg-white/10 hover:bg-white/15 text-white/50 rounded-xl transition-all">
@@ -260,12 +260,12 @@
             </div>
           </div>
           <div class="bg-white/[0.02] rounded-2xl p-4">
-            <p class="text-[11px] text-white/30 mb-2">💡 怎么获取视频文案？</p>
-            <ol class="text-xs text-white/40 leading-relaxed space-y-1 list-decimal list-inside">
-              <li>在抖音 App 打开视频</li>
-              <li>点击分享 → 复制链接</li>
-              <li>或用第三方工具提取视频文案</li>
-              <li>也可以用自己的话描述视频内容</li>
+            <p class="text-[11px] text-white/30 mb-2">📱 在抖音 App 获取文案</p>
+            <ol class="text-xs text-white/40 leading-relaxed space-y-1.5 list-decimal list-inside">
+              <li>在抖音打开视频 → 点分享 → 复制链接</li>
+              <li>回到本工具粘贴链接 → 提取内容</li>
+              <li>提取失败时再回抖音 → 复制文案/描述</li>
+              <li>粘贴到上方文本框点「开始分析」</li>
             </ol>
           </div>
         </div>
