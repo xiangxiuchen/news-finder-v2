@@ -8,40 +8,76 @@ function getApifyKey(): string {
   return process.env.APIFY_API_KEY || '';
 }
 
-// Lazy-load YouTube transcript module (only when needed)
-let ytApi: { getText: (id: string) => Promise<string> } | null = null;
-async function getYouTubeApi() {
-  if (!ytApi) {
-    const mod = await import('youtube-subtitles-ts');
-    const api = new mod.YouTubeTranscriptApi({
-      // proxyConfig can be added here if needed
+// YouTube transcript using Innertube API directly (no third-party package needed)
+// Uses the same approach as the popular youtube-transcript-api library
+const YT_INNERTUBE_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
+const YT_INNERTUBE_API = 'https://www.youtube.com/youtubei/v1/player';
+
+async function fetchYouTubeTranscript(videoId: string): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(YT_INNERTUBE_API + '?key=' + YT_INNERTUBE_KEY, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (compatible; Google-API-Client)',
+      },
+      body: JSON.stringify({
+        videoId,
+        context: {
+          client: {
+            clientName: 'WEB',
+            clientVersion: '2.20250101.00.00',
+            hl: 'en',
+            gl: 'US',
+          },
+        },
+      }),
+      signal: controller.signal,
     });
-    ytApi = { getText: (id: string) => api.getText(id) };
+    clearTimeout(id);
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const tracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+    if (!tracks?.length) return null;
+
+    // Pick best language track
+    let track: { baseUrl: string; languageCode?: string } = tracks[0];
+    for (const t of tracks) {
+      const code = t.languageCode || '';
+      if (['zh-Hans', 'zh', 'en', 'a.en'].includes(code)) { track = t; break; }
+    }
+
+    // Fetch transcript
+    const trackUrl = track.baseUrl.replace(/&caps=[^&]*/g, '') + '&fmt=json';
+    const trackRes = await fetch(trackUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!trackRes.ok) return null;
+
+    const json = await trackRes.json();
+    if (!Array.isArray(json)) return null;
+
+    const texts: string[] = [];
+    for (const entry of json) {
+      if (entry?.text) {
+        const clean = String(entry.text).replace(/<[^>]+>/g, '').trim();
+        if (clean) texts.push(clean);
+      }
+    }
+    return texts.length > 3 ? texts.join(' ') : null;
+  } catch {
+    return null;
   }
-  return ytApi;
 }
 
 /** Extract YouTube video ID */
 function getYouTubeID(url: string): string | null {
   const m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
   return m ? m[1] : null;
-}
-
-/** Fetch YouTube transcript using youtube-subtitles-ts package */
-async function fetchYouTubeTranscript(videoId: string): Promise<string | null> {
-  try {
-    const api = await getYouTubeApi();
-    const text = await api.getText(videoId);
-    if (text && text.length > 50) return text.slice(0, 10000);
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-function decodeHtmlEntities(text: string): string {
-  return text.replace(/&#(\d+);/g, (_, c) => String.fromCharCode(c))
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
 }
 
 /** Extract Bilibili BV号 */
