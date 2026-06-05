@@ -14,66 +14,68 @@ function getYouTubeID(url: string): string | null {
   return m ? m[1] : null;
 }
 
-/** Fetch YouTube transcript directly from YouTube's captions (no API key needed) */
+/** Fetch YouTube transcript — try via Jina proxy first (avoids IP blocks), then direct */
 async function fetchYouTubeTranscript(videoId: string): Promise<string | null> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
-
+  // Approach 1: Use Jina Reader to fetch the YouTube page (better IP reputation)
   try {
-    // Step 1: Fetch video page to get caption URLs
-    const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9,zh-CN;q=0.8',
-      },
-      signal: controller.signal,
+    const jinaRes = await fetch(`${JINA_READER}/https://www.youtube.com/watch?v=${videoId}`, {
+      headers: { 'Accept': 'text/plain', 'X-With-Links-Summary': 'true' },
     });
-    clearTimeout(timeout);
-    if (!pageRes.ok) return null;
-    const html = await pageRes.text();
-
-    // Step 2: Extract caption tracks from ytInitialPlayerResponse
-    const match = html.match(/ytInitialPlayerResponse\s*=\s*({.*?});/);
-    if (!match) return null;
-
-    let playerData;
-    try { playerData = JSON.parse(match[1]); } catch { return null; }
-
-    const captionTracks = playerData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-    if (!captionTracks || captionTracks.length === 0) return null;
-
-    // Step 3: Pick the best available track
-    let trackUrl = captionTracks[0]?.baseUrl;
-    const preferred = ['zh-Hans', 'zh', 'en', 'a.en', 'en-US', 'en-GB'];
-    for (const track of captionTracks) {
-      const code = track.languageCode || '';
-      if (preferred.includes(code)) { trackUrl = track.baseUrl; break; }
-    }
-    if (!trackUrl) return null;
-
-    // Step 4: Fetch the transcript XML (with 'caps' removed for full text)
-    trackUrl = trackUrl.replace(/&caps=[^&]*/, '') + '&fmt=json';
-    const trackRes = await fetch(trackUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': '*/*' },
-    });
-    if (!trackRes.ok) return null;
-
-    // Step 5: Parse JSON transcript (each entry has 'text' field)
-    const json = await trackRes.json();
-    const texts: string[] = [];
-    if (Array.isArray(json)) {
-      for (const entry of json) {
-        if (entry?.text?.trim()) {
-          texts.push(entry.text.replace(/<[^>]+>/g, '').trim());
+    if (jinaRes.ok) {
+      const text = await jinaRes.text();
+      // Try to extract caption URL from the Jina-fetched content
+      const baseUrlMatch = text.match(/baseUrl[":\s]+https?:\/\/www\.youtube\.com\/api\/timedtext[^"'\s]+/);
+      if (baseUrlMatch) {
+        let trackUrl = baseUrlMatch[0].replace(/baseUrl["\s:]+/i, '');
+        trackUrl = trackUrl.split('&caps')[0] + '&fmt=json';
+        const trackRes = await fetch(trackUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        if (trackRes.ok) {
+          const json = await trackRes.json();
+          const texts = (Array.isArray(json) ? json : [])
+            .filter((e: Record<string, unknown>) => e?.text && String(e.text).trim())
+            .map((e: Record<string, unknown>) => String(e.text).replace(/<[^>]+>/g, '').trim());
+          if (texts.length > 3) return texts.join(' ');
         }
       }
     }
+  } catch {}
 
-    if (texts.length > 3) return texts.join(' ');
-    return null;
+  // Approach 2: Try direct fetch with timeout (works if Vercel IP isn't blocked)
+  try {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 5000);
+    const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(id);
+    if (!pageRes.ok) return null;
+    const html = await pageRes.text();
+    const match = html.match(/ytInitialPlayerResponse\s*=\s*({.*?});/);
+    if (!match) return null;
+    const playerData = JSON.parse(match[1]);
+    const tracks = playerData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+    if (!tracks?.length) return null;
+
+    let trackUrl = tracks[0].baseUrl;
+    for (const t of tracks) {
+      if (['zh-Hans','zh','en','a.en','en-US'].includes(t.languageCode || '')) {
+        trackUrl = t.baseUrl; break;
+      }
+    }
+    trackUrl = trackUrl.replace(/&caps=[^&]*/, '') + '&fmt=json';
+
+    const trackRes = await fetch(trackUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+    if (!trackRes.ok) return null;
+    const json = await trackRes.json();
+    const texts = (Array.isArray(json) ? json : [])
+      .filter((e: Record<string, unknown>) => e?.text && String(e.text).trim())
+      .map((e: Record<string, unknown>) => String(e.text).replace(/<[^>]+>/g, '').trim());
+    return texts.length > 3 ? texts.join(' ') : null;
   } catch {
-    clearTimeout(timeout);
     return null;
   }
 }
