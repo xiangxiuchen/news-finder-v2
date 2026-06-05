@@ -16,14 +16,20 @@ function getYouTubeID(url: string): string | null {
 
 /** Fetch YouTube transcript directly from YouTube's captions (no API key needed) */
 async function fetchYouTubeTranscript(videoId: string): Promise<string | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+
   try {
     // Step 1: Fetch video page to get caption URLs
     const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; Bot)',
-        'Accept-Language': 'en-US,en;q=0.9',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9,zh-CN;q=0.8',
       },
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
     if (!pageRes.ok) return null;
     const html = await pageRes.text();
 
@@ -37,38 +43,37 @@ async function fetchYouTubeTranscript(videoId: string): Promise<string | null> {
     const captionTracks = playerData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
     if (!captionTracks || captionTracks.length === 0) return null;
 
-    // Step 3: Use the first available track (prefer English, then auto-generated)
+    // Step 3: Pick the best available track
     let trackUrl = captionTracks[0]?.baseUrl;
+    const preferred = ['zh-Hans', 'zh', 'en', 'a.en', 'en-US', 'en-GB'];
     for (const track of captionTracks) {
-      if (track.languageCode === 'en' || track.languageCode === 'a.en' || track.languageCode === 'zh-Hans' || track.languageCode === 'zh') {
-        trackUrl = track.baseUrl;
-        break;
-      }
+      const code = track.languageCode || '';
+      if (preferred.includes(code)) { trackUrl = track.baseUrl; break; }
     }
     if (!trackUrl) return null;
 
-    // Step 4: Fetch the transcript XML
+    // Step 4: Fetch the transcript XML (with 'caps' removed for full text)
+    trackUrl = trackUrl.replace(/&caps=[^&]*/, '') + '&fmt=json';
     const trackRes = await fetch(trackUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0' },
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': '*/*' },
     });
     if (!trackRes.ok) return null;
-    const xml = await trackRes.text();
 
-    // Step 5: Parse XML to extract text
+    // Step 5: Parse JSON transcript (each entry has 'text' field)
+    const json = await trackRes.json();
     const texts: string[] = [];
-    const textMatches = xml.match(/<text[^>]*>([^<]*)<\/text>/gi);
-    if (textMatches) {
-      for (const t of textMatches) {
-        const content = t.replace(/<[^>]+>/g, '').trim();
-        if (content) texts.push(decodeHtmlEntities(content));
+    if (Array.isArray(json)) {
+      for (const entry of json) {
+        if (entry?.text?.trim()) {
+          texts.push(entry.text.replace(/<[^>]+>/g, '').trim());
+        }
       }
     }
 
-    if (texts.length > 5) {
-      return texts.join(' ');
-    }
+    if (texts.length > 3) return texts.join(' ');
     return null;
   } catch {
+    clearTimeout(timeout);
     return null;
   }
 }
