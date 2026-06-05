@@ -14,66 +14,54 @@ function getYouTubeID(url: string): string | null {
   return m ? m[1] : null;
 }
 
-/** Fetch YouTube transcript — try via Jina proxy first (avoids IP blocks), then direct */
+/** Fetch YouTube transcript directly (no external API key needed) */
 async function fetchYouTubeTranscript(videoId: string): Promise<string | null> {
-  // Approach 1: Use Jina Reader to fetch the YouTube page (better IP reputation)
   try {
-    const jinaRes = await fetch(`${JINA_READER}/https://www.youtube.com/watch?v=${videoId}`, {
-      headers: { 'Accept': 'text/plain', 'X-With-Links-Summary': 'true' },
-    });
-    if (jinaRes.ok) {
-      const text = await jinaRes.text();
-      // Try to extract caption URL from the Jina-fetched content
-      const baseUrlMatch = text.match(/baseUrl[":\s]+https?:\/\/www\.youtube\.com\/api\/timedtext[^"'\s]+/);
-      if (baseUrlMatch) {
-        let trackUrl = baseUrlMatch[0].replace(/baseUrl["\s:]+/i, '');
-        trackUrl = trackUrl.split('&caps')[0] + '&fmt=json';
-        const trackRes = await fetch(trackUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-        if (trackRes.ok) {
-          const json = await trackRes.json();
-          const texts = (Array.isArray(json) ? json : [])
-            .filter((e: Record<string, unknown>) => e?.text && String(e.text).trim())
-            .map((e: Record<string, unknown>) => String(e.text).replace(/<[^>]+>/g, '').trim());
-          if (texts.length > 3) return texts.join(' ');
-        }
-      }
-    }
-  } catch {}
-
-  // Approach 2: Try direct fetch with timeout (works if Vercel IP isn't blocked)
-  try {
+    // Fetch YouTube page with CONSENT cookie (required to bypass consent wall)
     const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), 5000);
-    const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+    const id = setTimeout(() => controller.abort(), 8000);
+    const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}&hl=en`, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml',
         'Accept-Language': 'en-US,en;q=0.9',
+        'Cookie': 'CONSENT=YES+cb.20240101-17-p0.en+FX+100; SOCS=CAI',
       },
       signal: controller.signal,
     });
     clearTimeout(id);
     if (!pageRes.ok) return null;
     const html = await pageRes.text();
+
+    // Extract ytInitialPlayerResponse
     const match = html.match(/ytInitialPlayerResponse\s*=\s*({.*?});/);
     if (!match) return null;
     const playerData = JSON.parse(match[1]);
     const tracks = playerData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
     if (!tracks?.length) return null;
 
+    // Pick best track (prefer Chinese, then English, then first available)
     let trackUrl = tracks[0].baseUrl;
     for (const t of tracks) {
-      if (['zh-Hans','zh','en','a.en','en-US'].includes(t.languageCode || '')) {
-        trackUrl = t.baseUrl; break;
-      }
+      const code = t.languageCode || '';
+      if (['zh-Hans','zh','en','a.en','en-US'].includes(code)) { trackUrl = t.baseUrl; break; }
     }
-    trackUrl = trackUrl.replace(/&caps=[^&]*/, '') + '&fmt=json';
 
+    // Fetch transcript as JSON
+    trackUrl = trackUrl.replace(/&caps=[^&]*/, '') + '&fmt=json';
     const trackRes = await fetch(trackUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
     if (!trackRes.ok) return null;
+
     const json = await trackRes.json();
-    const texts = (Array.isArray(json) ? json : [])
-      .filter((e: Record<string, unknown>) => e?.text && String(e.text).trim())
-      .map((e: Record<string, unknown>) => String(e.text).replace(/<[^>]+>/g, '').trim());
+    if (!Array.isArray(json)) return null;
+
+    const texts: string[] = [];
+    for (const entry of json) {
+      if (entry?.text) {
+        const clean = String(entry.text).replace(/<[^>]+>/g, '').trim();
+        if (clean) texts.push(clean);
+      }
+    }
     return texts.length > 3 ? texts.join(' ') : null;
   } catch {
     return null;
