@@ -208,17 +208,23 @@
       return data.choices?.[0]?.message?.content || '';
     }
 
-    const SYSTEM_PROMPT = `你是一个自媒体爆款教练。分析以下素材，为创作者输出一份发帖指南。
+    const SYSTEM_PROMPT = `你是一个资深自媒体教练。分析以下输入的素材（可能只是标题+摘要，也可能是完整文章），结合你自己的知识储备，为创作者输出一份有深度、可直接用的发帖指南。
+
+注意：如果输入内容较短（比如只有标题和几句话），请利用你自己的知识补充相关背景、趋势和行业上下文，让分析结果足够丰富。
 
 输出 JSON 格式（不要包含其他内容）：
 {
-  "title": "吸引眼球的标题建议",
-  "summary": "核心事实摘要（150字以内）",
-  "hotAnalysis": "爆点分析（为什么能火？抓住了什么心理？）",
-  "angles": ["角度1: ...", "角度2: ...", "角度3: ..."]
-}
-
-要求：summary 直击核心，hotAnalysis 分析情绪共鸣点和传播动力，angles 给出 3 个不同视角的发帖切入点。`;
+  "title": "3个吸睛标题备选（用|分隔）",
+  "summary": "核心事实摘要（300字以内，包含事件背景+关键细节）",
+  "hotAnalysis": "爆点分析（分析情绪共鸣点、冲突点、目标受众心理、传播动力）",
+  "angles": [
+    "角度1: 针对普通用户的视角（包含标题建议+切入角度说明）",
+    "角度2: 针对行业/专业视角（包含标题建议+深度分析角度）",
+    "角度3: 针对争议/吐槽视角（包含标题建议+情绪化表达角度）"
+  ],
+  "trendContext": "这个话题背后的行业趋势或社会背景（100字以内）",
+  "tags": ["#推荐标签1", "#推荐标签2", "#推荐标签3", "#推荐标签4"]
+}`;
 
     function parseAI(text) {
       try { return JSON.parse(text); } catch {}
@@ -503,6 +509,20 @@
             `).join('')}
           </div>
 
+          ${data.trendContext ? `
+          <div class="card-glow relative rounded-2xl p-5 mb-4">
+            <div class="flex items-center gap-2 mb-3">
+              <i class="lucide-trending-up text-white/40 text-sm"></i>
+              <span class="text-[11px] font-medium text-white/40 uppercase tracking-wider">趋势背景</span>
+            </div>
+            <p class="text-sm text-white/70 leading-relaxed">${esc(data.trendContext)}</p>
+          </div>` : ''}
+
+          ${data.tags && data.tags.length > 0 ? `
+          <div class="mb-4 flex flex-wrap gap-1.5 px-1">
+            ${data.tags.map(t => `<span class="px-2.5 py-1 rounded-full text-[10px] font-medium bg-blue-500/10 text-blue-300/70">${esc(t)}</span>`).join('')}
+          </div>` : ''}
+
           <div class="flex gap-2 mb-6">
             <button id="saveBtn" class="flex-1 h-10 text-xs font-medium bg-white/10 hover:bg-white/15 text-white/80 rounded-xl transition-all flex items-center justify-center gap-1.5">
               <i class="lucide-bookmark text-sm"></i> 保存到选题库
@@ -516,7 +536,7 @@
 
       document.getElementById('saveBtn').onclick = () => {
         const lib = getLib();
-        lib.unshift({ id:Date.now(), savedAt:new Date().toLocaleString('zh-CN'), url, urlType, title:data.title, summary:data.summary, hotAnalysis:data.hotAnalysis, angles:data.angles, rawContent });
+        lib.unshift({ id:Date.now(), savedAt:new Date().toLocaleString('zh-CN'), url, urlType, title:data.title, summary:data.summary, hotAnalysis:data.hotAnalysis, angles:data.angles, trendContext:data.trendContext||'', tags:data.tags||[], rawContent });
         saveLib(lib);
         updateLibBadge();
         toast('已保存到选题库', 'success');
