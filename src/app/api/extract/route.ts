@@ -290,7 +290,7 @@ export async function GET(request: NextRequest) {
     if (url!.includes('instagram.com')) {
       const apiKey = getApifyKey();
       if (apiKey) {
-        const runId = await startApifyRunFor(APIFY_IG_ACTOR, { videoUrl: url! });
+        const runId = await startApifyRunFor(APIFY_IG_ACTOR, { reelUrls: [url!] });
         if (runId) {
           return NextResponse.json({ status: 'processing', runId, message: '正在提取 Instagram 视频内容...' });
         }
