@@ -96,23 +96,23 @@ function getBilibiliBV(url: string): string | null {
   return m ? m[1] : null;
 }
 
-/** Start Apify transcription run (async) and return run ID */
-async function startApifyRun(url: string): Promise<string | null> {
+/** Start Apify run for any actor and return run ID */
+async function startApifyRunFor(actorId: string, input: Record<string, unknown>): Promise<string | null> {
   const apiKey = getApifyKey();
   if (!apiKey) return null;
-
   try {
-    const res = await fetch(`${APIFY_API}/acts/${APIFY_DOUYIN_ACTOR}/runs?token=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ videoUrl: url }),
+    const res = await fetch(`${APIFY_API}/acts/${actorId}/runs?token=${apiKey}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
     });
     if (!res.ok) return null;
     const data = await res.json();
     return data?.data?.id || data?.id || null;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
+}
+
+/** Start Apify Douyin transcription run */
+async function startApifyRun(url: string): Promise<string | null> {
+  return startApifyRunFor(APIFY_DOUYIN_ACTOR, { videoUrl: url });
 }
 
 /** Poll Apify run result */
@@ -220,20 +220,15 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // --- YouTube (Apify transcript → Jina fallback) ---
+    // --- YouTube (async Apify → Jina fallback) ---
     const ytID = getYouTubeID(url!);
     if (ytID) {
-      // Try 1: Apify YouTube Transcript Scraper (handles proxies, no IP blocks)
+      // Try 1: Apify YouTube Transcript Scraper (async, handles IP blocks)
       const apifyKey = getApifyKey();
       if (apifyKey) {
-        const transcript = await fetchYouTubeTranscriptViaApify(ytID);
-        if (transcript && transcript.length > 50) {
-          return NextResponse.json({
-            status: 'completed',
-            text: transcript.slice(0, 10000),
-            source: 'apify_youtube_transcript',
-            note: '包含字幕文本',
-          });
+        const runId = await startApifyRunFor(APIFY_YT_ACTOR, { videoUrl: `https://www.youtube.com/watch?v=${ytID}` });
+        if (runId) {
+          return NextResponse.json({ status: 'processing', runId, message: '正在提取 YouTube 字幕...' });
         }
       }
 
