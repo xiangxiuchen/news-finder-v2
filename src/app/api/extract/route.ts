@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 const JINA_READER = 'https://r.jina.ai';
 const APIFY_DOUYIN_ACTOR = 'apple_yang~douyin-transcripts-scraper';
 const APIFY_YT_ACTOR = 'supreme_coder~youtube-transcript-scraper';
+const APIFY_IG_ACTOR = 'linen_snack~instagram-reel-transcript-ai-extractor';
 const APIFY_API = 'https://api.apify.com/v2';
 
 function getApifyKey(): string {
@@ -283,6 +284,30 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ status: 'none', text: '', note: '配置 APIFY_API_KEY 可自动提取抖音文案' });
       }
       return NextResponse.json({ status: 'none', text: '', note: '转录启动失败' });
+    }
+
+    // --- Instagram ---
+    if (url!.includes('instagram.com')) {
+      const apiKey = getApifyKey();
+      if (apiKey) {
+        const runId = await startApifyRunFor(APIFY_IG_ACTOR, { url: url! });
+        if (runId) {
+          return NextResponse.json({ status: 'processing', runId, message: '正在提取 Instagram 视频内容...' });
+        }
+      }
+      // Fallback: Jina Reader
+      try {
+        const res = await fetch(`${JINA_READER}/${encodeURI(url!)}`, {
+          headers: { 'Accept': 'text/plain', 'X-With-Links-Summary': 'true' },
+        });
+        if (res.ok) {
+          const text = await res.text();
+          if (text && text.length > 50) {
+            return NextResponse.json({ status: 'completed', text: text.slice(0, 5000), source: 'jina_reader' });
+          }
+        }
+      } catch {}
+      return NextResponse.json({ status: 'none', text: '', note: '配置 APIFY_API_KEY 可自动提取 Instagram 视频文案' });
     }
 
     // --- Generic: Try Jina Reader ---

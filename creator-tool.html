@@ -107,7 +107,7 @@
           <span id="btnText">拆解</span>
         </button>
       </div>
-      <p id="inputHint" class="text-[10px] text-white/20 mt-1.5 px-1">支持新闻 / 抖音 / B站 / YouTube 链接</p>
+      <p id="inputHint" class="text-[10px] text-white/20 mt-1.5 px-1">支持新闻 / 抖音 / B站 / YouTube / Instagram</p>
     </div>
 
     <!-- Content -->
@@ -181,6 +181,7 @@
       try { new URL(url); } catch { return null; }
       const ps = [
         ['douyin', /(douyin\.com|iesdouyin\.com)/i],
+        ['instagram', /instagram\.com\/(p|reel|tv)\//i],
         ['bilibili', /bilibili\.com/i],
         ['youtube', /(youtube\.com|youtu\.be)/i],
         ['kuaishou', /kuaishou\.com/i],
@@ -190,7 +191,7 @@
       for (const [name, re] of ps) { if (re.test(url)) return name; }
       return 'news';
     }
-    const PNAME = { douyin:'抖音', bilibili:'B站', youtube:'YouTube', kuaishou:'快手', weibo:'微博', xhs:'小红书', news:'新闻' };
+    const PNAME = { douyin:'抖音', bilibili:'B站', youtube:'YouTube', kuaishou:'快手', weibo:'微博', xhs:'小红书', instagram:'Instagram', news:'新闻' };
 
     // ===== DeepSeek =====
     async function callAI(system, userMsg) {
@@ -415,7 +416,7 @@
             if (platform !== 'news') {
               showVideoInput(platform, textInput);
               isAnalyzing = false; analyzeBtn.disabled = false; btnText.textContent = '拆解';
-              inputHint.textContent = '支持新闻 / 抖音 / B站 / YouTube 链接';
+              inputHint.textContent = '支持新闻 / 抖音 / B站 / YouTube / Instagram';
               return;
             }
             throw e;
@@ -425,7 +426,7 @@
           if (rawText.length < 80 && platform !== 'news') {
             showVideoInput(platform, textInput);
             isAnalyzing = false; analyzeBtn.disabled = false; btnText.textContent = '拆解';
-            inputHint.textContent = '支持新闻 / 抖音 / B站 / YouTube 链接';
+            inputHint.textContent = '支持新闻 / 抖音 / B站 / YouTube / Instagram';
             return;
           }
         } else {
@@ -460,7 +461,7 @@
         isAnalyzing = false;
         analyzeBtn.disabled = false;
         btnText.textContent = '拆解';
-        inputHint.textContent = '支持新闻 / 抖音 / B站 / YouTube 链接';
+        inputHint.textContent = '支持新闻 / 抖音 / B站 / YouTube / Instagram';
       }
     }
 
