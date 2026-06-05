@@ -40,7 +40,7 @@ async function startApifyRun(url: string): Promise<string | null> {
 }
 
 /** Poll Apify run result */
-async function pollApifyRun(runId: string): Promise<{ status: string; text?: string }> {
+async function pollApifyRun(runId: string): Promise<{ status: string; text?: string; error?: string; title?: string; caption?: string }> {
   const apiKey = getApifyKey();
   if (!apiKey) return { status: 'error' };
 

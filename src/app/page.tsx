@@ -13,7 +13,7 @@ import SkeletonCard from '@/components/SkeletonCard';
 import SetupGuide from '@/components/SetupGuide';
 import ExportMenu from '@/components/ExportMenu';
 
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 20;
 
 export default function Home() {
   const [articles, setArticles] = useState<NewsArticle[]>([]);
@@ -27,6 +27,7 @@ export default function Home() {
   const [displayCount, setDisplayCount] = useState(PAGE_SIZE);
   const [trending, setTrending] = useState<NewsArticle[]>([]);
   const [needsConfig, setNeedsConfig] = useState(false);
+  const [searchedByUser, setSearchedByUser] = useState(false);
 
   const { items: savedItems, isSaved, save, remove } = useCollections();
   const { items: searchHistory, add: addHistory } = useSearchHistory();
@@ -34,7 +35,7 @@ export default function Home() {
   const initializedRef = useRef(false);
   const filterChangeRef = useRef(false);
 
-  // Load trending on first visit
+  // Load today's AI news on first visit — auto-show 20 articles
   useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
@@ -45,7 +46,10 @@ export default function Home() {
         if (data.needsConfig) {
           setNeedsConfig(true);
         } else if (data.articles?.length > 0) {
-          setTrending(data.articles);
+          // Show AI news directly in the main results area
+          setArticles(data.articles);
+          setSearched(true);
+          setLastQuery('AI 人工智能');
         }
       })
       .catch(() => {})
@@ -68,6 +72,7 @@ export default function Home() {
     setLastMode(mode);
     setDisplayCount(PAGE_SIZE);
     setTrending([]);
+    setSearchedByUser(true);
     addHistory(query, mode);
 
     try {
@@ -258,6 +263,20 @@ export default function Home() {
         {/* Results list */}
         {!loading && displayArticles.length > 0 && (
           <div className="animate-in">
+            {/* AI news header — shows on initial auto-load, hides after user searches */}
+            {!searchedByUser && lastQuery === 'AI 人工智能' && (
+              <div className="px-4 pt-4 pb-1">
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-blue-50 flex items-center justify-center">
+                    <svg className="w-3 h-3 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                    </svg>
+                  </span>
+                  <span className="text-sm font-semibold text-gray-900">今日 AI 资讯</span>
+                  <span className="text-[10px] text-gray-400">自动为你推荐</span>
+                </div>
+              </div>
+            )}
             <ExportMenu articles={articles} query={lastQuery} />
 
             {displayArticles.map((article, i) => (
