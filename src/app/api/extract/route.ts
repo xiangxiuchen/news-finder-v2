@@ -8,106 +8,32 @@ function getApifyKey(): string {
   return process.env.APIFY_API_KEY || '';
 }
 
+// Lazy-load YouTube transcript module (only when needed)
+let ytApi: { getText: (id: string) => Promise<string> } | null = null;
+async function getYouTubeApi() {
+  if (!ytApi) {
+    const mod = await import('youtube-subtitles-ts');
+    const api = new mod.YouTubeTranscriptApi({
+      // proxyConfig can be added here if needed
+    });
+    ytApi = { getText: (id: string) => api.getText(id) };
+  }
+  return ytApi;
+}
+
 /** Extract YouTube video ID */
 function getYouTubeID(url: string): string | null {
   const m = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
   return m ? m[1] : null;
 }
 
-/** Fetch YouTube transcript directly (no external API key needed) */
+/** Fetch YouTube transcript using youtube-subtitles-ts package */
 async function fetchYouTubeTranscript(videoId: string): Promise<string | null> {
-  // Approach: Use Jina Reader as proxy (bypasses Vercel IP blocks)
-  // Then extract caption URL from the fetched content
   try {
-    // Jina sometimes preserves the caption URL in its markdown output
-    const jinaRes = await fetch(`${JINA_READER}/https://www.youtube.com/watch?v=${videoId}`, {
-      headers: { 'Accept': 'text/plain' },
-    });
-    if (jinaRes.ok) {
-      const text = await jinaRes.text();
-
-      // Try to find the timedtext URL in the Jina output
-      // The URL format: https://www.youtube.com/api/timedtext?v=VIDEO_ID&ei=...
-      const urlMatch = text.match(/https?:\/\/www\.youtube\.com\/api\/timedtext\?v=[a-zA-Z0-9_-]+&ei=[a-zA-Z0-9_-]+/);
-      if (urlMatch) {
-        // Try different languages
-        for (const lang of ['zh-Hans', 'zh', 'en', '']) {
-          let trackUrl = urlMatch[0];
-          if (lang) trackUrl += `&lang=${lang}`;
-          trackUrl += '&fmt=json';
-
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 3000);
-          try {
-            const trackRes = await fetch(trackUrl, { signal: controller.signal });
-            clearTimeout(timeoutId);
-            if (!trackRes.ok) continue;
-
-            const json = await trackRes.json();
-            if (!Array.isArray(json)) continue;
-
-            const texts: string[] = [];
-            for (const entry of json) {
-              if (entry?.text) {
-                const clean = String(entry.text).replace(/<[^>]+>/g, '').trim();
-                if (clean) texts.push(clean);
-              }
-            }
-            if (texts.length > 3) return texts.join(' ');
-          } catch {
-            clearTimeout(timeoutId);
-          }
-        }
-      }
-    }
-  } catch {}
-
-  // Approach 2: Direct fetch with CONSENT cookie (may fail from Vercel IPs)
-  try {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), 6000);
-    const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}&hl=en`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Cookie': 'CONSENT=YES+cb.20240101-17-p0.en+FX+100; SOCS=CAI',
-      },
-      signal: controller.signal,
-    });
-    clearTimeout(id);
-    if (!pageRes.ok) return null;
-    const html = await pageRes.text();
-    const match = html.match(/ytInitialPlayerResponse\s*=\s*({.*?});/);
-    if (!match) return null;
-    const playerData = JSON.parse(match[1]);
-    const tracks = playerData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-    if (!tracks?.length) return null;
-
-    let trackUrl = tracks[0].baseUrl;
-    for (const t of tracks) {
-      const code = t.languageCode || '';
-      if (['zh-Hans','zh','en','a.en','en-US'].includes(code)) { trackUrl = t.baseUrl; break; }
-    }
-
-    const controller2 = new AbortController();
-    const id2 = setTimeout(() => controller2.abort(), 5000);
-    trackUrl = trackUrl.replace(/&caps=[^&]*/, '') + '&fmt=json';
-    const trackRes = await fetch(trackUrl, { signal: controller2.signal });
-    clearTimeout(id2);
-    if (!trackRes.ok) return null;
-
-    const json = await trackRes.json();
-    if (!Array.isArray(json)) return null;
-
-    const texts: string[] = [];
-    for (const entry of json) {
-      if (entry?.text) {
-        const clean = String(entry.text).replace(/<[^>]+>/g, '').trim();
-        if (clean) texts.push(clean);
-      }
-    }
-    return texts.length > 3 ? texts.join(' ') : null;
+    const api = await getYouTubeApi();
+    const text = await api.getText(videoId);
+    if (text && text.length > 50) return text.slice(0, 10000);
+    return null;
   } catch {
     return null;
   }
