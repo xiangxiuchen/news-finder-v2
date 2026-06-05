@@ -49,7 +49,7 @@ export default function Home() {
           // Show AI news directly in the main results area
           setArticles(data.articles);
           setSearched(true);
-          setLastQuery('AI 人工智能');
+          setLastQuery('AI');
         }
       })
       .catch(() => {})
@@ -264,7 +264,7 @@ export default function Home() {
         {!loading && displayArticles.length > 0 && (
           <div className="animate-in">
             {/* AI news header — shows on initial auto-load, hides after user searches */}
-            {!searchedByUser && lastQuery === 'AI 人工智能' && (
+            {!searchedByUser && lastQuery === 'AI' && (
               <div className="px-4 pt-4 pb-1">
                 <div className="flex items-center gap-2">
                   <span className="w-5 h-5 rounded-full bg-blue-50 flex items-center justify-center">

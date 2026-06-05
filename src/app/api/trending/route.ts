@@ -12,31 +12,27 @@ export async function GET() {
   }
 
   try {
-    // Search for AI-related news from the last 24h, sorted by popularity
-    const result = await searchNews('AI 人工智能', {
+    // Search for AI news — use English query for better NewsAPI results
+    const result = await searchNews('AI', {
       time: '24h',
       sortBy: 'popularity',
     });
 
-    // If not enough results, also search in English and merge
-    if (result.articles.length < 20) {
-      const enResult = await searchNews('artificial intelligence', {
-        time: '24h',
+    // If not enough results from 24h, expand to 3 days
+    let articles = result.articles;
+    if (articles.length < 20) {
+      const weekResult = await searchNews('AI', {
+        time: '3d',
         sortBy: 'popularity',
       });
-      // Merge, deduplicate by URL, keep AI topic first
-      const seen = new Set(result.articles.map(a => a.url));
-      const merged = [...result.articles];
-      for (const article of enResult.articles) {
-        if (!seen.has(article.url)) {
-          merged.push(article);
-          seen.add(article.url);
-        }
+      // Deduplicate
+      const seen = new Set(articles.map(a => a.url));
+      for (const a of weekResult.articles) {
+        if (!seen.has(a.url)) { articles.push(a); seen.add(a.url); }
       }
-      return NextResponse.json({ articles: merged.slice(0, 20), totalResults: merged.length, needsConfig: false });
     }
 
-    return NextResponse.json({ ...result, needsConfig: false });
+    return NextResponse.json({ articles: articles.slice(0, 20), totalResults: articles.length, needsConfig: false });
   } catch (err) {
     const message = err instanceof Error ? err.message : '获取热点失败';
     return NextResponse.json({ articles: [], totalResults: 0, error: message, needsConfig: false }, { status: 500 });
