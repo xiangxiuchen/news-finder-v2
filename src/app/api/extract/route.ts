@@ -14,6 +14,70 @@ function getYouTubeID(url: string): string | null {
   return m ? m[1] : null;
 }
 
+/** Fetch YouTube transcript directly from YouTube's captions (no API key needed) */
+async function fetchYouTubeTranscript(videoId: string): Promise<string | null> {
+  try {
+    // Step 1: Fetch video page to get caption URLs
+    const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; Bot)',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+    });
+    if (!pageRes.ok) return null;
+    const html = await pageRes.text();
+
+    // Step 2: Extract caption tracks from ytInitialPlayerResponse
+    const match = html.match(/ytInitialPlayerResponse\s*=\s*({.*?});/);
+    if (!match) return null;
+
+    let playerData;
+    try { playerData = JSON.parse(match[1]); } catch { return null; }
+
+    const captionTracks = playerData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+    if (!captionTracks || captionTracks.length === 0) return null;
+
+    // Step 3: Use the first available track (prefer English, then auto-generated)
+    let trackUrl = captionTracks[0]?.baseUrl;
+    for (const track of captionTracks) {
+      if (track.languageCode === 'en' || track.languageCode === 'a.en' || track.languageCode === 'zh-Hans' || track.languageCode === 'zh') {
+        trackUrl = track.baseUrl;
+        break;
+      }
+    }
+    if (!trackUrl) return null;
+
+    // Step 4: Fetch the transcript XML
+    const trackRes = await fetch(trackUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+    });
+    if (!trackRes.ok) return null;
+    const xml = await trackRes.text();
+
+    // Step 5: Parse XML to extract text
+    const texts: string[] = [];
+    const textMatches = xml.match(/<text[^>]*>([^<]*)<\/text>/gi);
+    if (textMatches) {
+      for (const t of textMatches) {
+        const content = t.replace(/<[^>]+>/g, '').trim();
+        if (content) texts.push(decodeHtmlEntities(content));
+      }
+    }
+
+    if (texts.length > 5) {
+      return texts.join(' ');
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function decodeHtmlEntities(text: string): string {
+  return text.replace(/&#(\d+);/g, (_, c) => String.fromCharCode(c))
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+}
+
 /** Extract Bilibili BV号 */
 function getBilibiliBV(url: string): string | null {
   const m = url.match(/\/video\/(BV[a-zA-Z0-9]+)/);
@@ -144,9 +208,21 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // --- YouTube ---
+    // --- YouTube (try transcript first, then fallback to Jina) ---
     const ytID = getYouTubeID(url!);
     if (ytID) {
+      // Try 1: Direct transcript extraction (full spoken content)
+      const transcript = await fetchYouTubeTranscript(ytID);
+      if (transcript && transcript.length > 100) {
+        return NextResponse.json({
+          status: 'completed',
+          text: transcript.slice(0, 10000),
+          source: 'youtube_transcript',
+          note: '包含完整字幕文本',
+        });
+      }
+
+      // Try 2: Jina Reader fallback (page metadata)
       try {
         const res = await fetch(`${JINA_READER}/${encodeURI(url!)}`, {
           headers: { 'User-Agent': 'Mozilla/5.0', 'X-With-Links-Summary': 'true' },
