@@ -1,74 +1,84 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const JINA_READER = 'https://r.jina.ai';
-const APIFY_ACTOR = 'apple_yang~douyin-transcripts-scraper';
+const APIFY_DOUYIN_ACTOR = 'apple_yang~douyin-transcripts-scraper';
+const APIFY_YT_ACTOR = 'supreme_coder~youtube-transcript-scraper';
 const APIFY_API = 'https://api.apify.com/v2';
 
 function getApifyKey(): string {
   return process.env.APIFY_API_KEY || '';
 }
 
-// YouTube transcript using Innertube API directly (no third-party package needed)
-// Uses the same approach as the popular youtube-transcript-api library
-const YT_INNERTUBE_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
-const YT_INNERTUBE_API = 'https://www.youtube.com/youtubei/v1/player';
+/** Get YouTube transcript via Apify (uses proxy to avoid IP blocks) */
+async function fetchYouTubeTranscriptViaApify(videoId: string): Promise<string | null> {
+  return fetchViaApify(APIFY_YT_ACTOR, { videoUrl: `https://www.youtube.com/watch?v=${videoId}` });
+}
 
-async function fetchYouTubeTranscript(videoId: string): Promise<string | null> {
+/** Get Douyin transcript via Apify */
+async function fetchDouyinViaApify(url: string): Promise<string | null> {
+  return fetchViaApify(APIFY_DOUYIN_ACTOR, { videoUrl: url });
+}
+
+/** Generic Apify actor runner */
+async function fetchViaApify(actorId: string, input: Record<string, unknown>): Promise<string | null> {
+  const apiKey = getApifyKey();
+  if (!apiKey) return null;
+
   try {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), 8000);
-    const res = await fetch(YT_INNERTUBE_API + '?key=' + YT_INNERTUBE_KEY, {
+    // Start async run
+    const runRes = await fetch(`${APIFY_API}/acts/${actorId}/runs?token=${apiKey}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (compatible; Google-API-Client)',
-      },
-      body: JSON.stringify({
-        videoId,
-        context: {
-          client: {
-            clientName: 'WEB',
-            clientVersion: '2.20250101.00.00',
-            hl: 'en',
-            gl: 'US',
-          },
-        },
-      }),
-      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
     });
-    clearTimeout(id);
-    if (!res.ok) return null;
+    if (!runRes.ok) return null;
+    const runData = await runRes.json();
+    const runId = runData?.data?.id || runData?.id;
+    if (!runId) return null;
 
-    const data = await res.json();
-    const tracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-    if (!tracks?.length) return null;
+    // Wait for completion (poll up to 25s)
+    for (let i = 0; i < 8; i++) {
+      await new Promise(r => setTimeout(r, 3000));
+      const statusRes = await fetch(`${APIFY_API}/actor-runs/${runId}?token=${apiKey}`);
+      if (!statusRes.ok) continue;
+      const statusData = await statusRes.json();
+      const runStatus = statusData?.data?.status || statusData?.status;
 
-    // Pick best language track
-    let track: { baseUrl: string; languageCode?: string } = tracks[0];
-    for (const t of tracks) {
-      const code = t.languageCode || '';
-      if (['zh-Hans', 'zh', 'en', 'a.en'].includes(code)) { track = t; break; }
-    }
+      if (runStatus === 'SUCCEEDED') {
+        const dsId = statusData?.data?.defaultDatasetId || statusData?.defaultDatasetId;
+        if (!dsId) return null;
+        const dsRes = await fetch(`${APIFY_API}/datasets/${dsId}/items?token=${apiKey}`);
+        if (!dsRes.ok) return null;
+        const items = await dsRes.json();
+        const record = Array.isArray(items) ? items[0] : items;
+        if (!record) return null;
 
-    // Fetch transcript
-    const trackUrl = track.baseUrl.replace(/&caps=[^&]*/g, '') + '&fmt=json';
-    const trackRes = await fetch(trackUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0' },
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!trackRes.ok) return null;
+        // Build result text
+        let result = '';
+        if (record.title) result += `标题：${record.title}\n`;
+        if (record.description || record.caption) result += `描述：${record.description || record.caption}\n`;
+        // YouTube-specific fields
+        if (record.text && typeof record.text === 'string' && record.text.length > 10) {
+          result += `\n--- 字幕文本 ---\n${record.text}\n`;
+        }
+        if (record.transcript && Array.isArray(record.transcript)) {
+          const lines = record.transcript
+            .filter((s: { text?: string }) => s?.text)
+            .map((s: { text?: string }) => String(s.text).replace(/<[^>]+>/g, '').trim());
+          if (lines.length > 0) result += `\n--- 逐句字幕 ---\n${lines.join('\n')}\n`;
+        }
+        // Douyin-specific fields
+        if (record.nickname) result += `作者：${record.nickname}\n`;
+        if (record.diggCount !== undefined) result += `点赞数：${record.diggCount}\n`;
 
-    const json = await trackRes.json();
-    if (!Array.isArray(json)) return null;
-
-    const texts: string[] = [];
-    for (const entry of json) {
-      if (entry?.text) {
-        const clean = String(entry.text).replace(/<[^>]+>/g, '').trim();
-        if (clean) texts.push(clean);
+        if (result.trim().length > 20) return result.trim().slice(0, 10000);
+        return null;
       }
+
+      if (['FAILED', 'TIMED-OUT', 'ABORTED'].includes(runStatus)) return null;
+      // else still 'RUNNING'
     }
-    return texts.length > 3 ? texts.join(' ') : null;
+    return null; // timeout
   } catch {
     return null;
   }
@@ -92,7 +102,7 @@ async function startApifyRun(url: string): Promise<string | null> {
   if (!apiKey) return null;
 
   try {
-    const res = await fetch(`${APIFY_API}/acts/${APIFY_ACTOR}/runs?token=${apiKey}`, {
+    const res = await fetch(`${APIFY_API}/acts/${APIFY_DOUYIN_ACTOR}/runs?token=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ videoUrl: url }),
@@ -210,18 +220,21 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // --- YouTube (try transcript first, then fallback to Jina) ---
+    // --- YouTube (Apify transcript → Jina fallback) ---
     const ytID = getYouTubeID(url!);
     if (ytID) {
-      // Try 1: Direct transcript extraction (full spoken content)
-      const transcript = await fetchYouTubeTranscript(ytID);
-      if (transcript && transcript.length > 100) {
-        return NextResponse.json({
-          status: 'completed',
-          text: transcript.slice(0, 10000),
-          source: 'youtube_transcript',
-          note: '包含完整字幕文本',
-        });
+      // Try 1: Apify YouTube Transcript Scraper (handles proxies, no IP blocks)
+      const apifyKey = getApifyKey();
+      if (apifyKey) {
+        const transcript = await fetchYouTubeTranscriptViaApify(ytID);
+        if (transcript && transcript.length > 50) {
+          return NextResponse.json({
+            status: 'completed',
+            text: transcript.slice(0, 10000),
+            source: 'apify_youtube_transcript',
+            note: '包含字幕文本',
+          });
+        }
       }
 
       // Try 2: Jina Reader fallback (page metadata)
@@ -261,7 +274,7 @@ export async function GET(request: NextRequest) {
       const apiKey = getApifyKey();
 
       if (apiKey) {
-        // Start async Apify run
+        // Let frontend poll for results
         const runIdResult = await startApifyRun(url!);
         if (runIdResult) {
           return NextResponse.json({ status: 'processing', runId: runIdResult, message: '正在转录视频语音...' });
