@@ -9,17 +9,12 @@ function getApifyKey(): string {
   return process.env.APIFY_API_KEY || '';
 }
 
-/** Get YouTube transcript via Apify (uses proxy to avoid IP blocks) */
-async function fetchYouTubeTranscriptViaApify(videoId: string): Promise<string | null> {
-  return fetchViaApify(APIFY_YT_ACTOR, { videoUrl: `https://www.youtube.com/watch?v=${videoId}` });
-}
-
 /** Get Douyin transcript via Apify */
 async function fetchDouyinViaApify(url: string): Promise<string | null> {
   return fetchViaApify(APIFY_DOUYIN_ACTOR, { videoUrl: url });
 }
 
-/** Generic Apify actor runner */
+/** Generic Apify actor runner (sync, may timeout from Vercel) */
 async function fetchViaApify(actorId: string, input: Record<string, unknown>): Promise<string | null> {
   const apiKey = getApifyKey();
   if (!apiKey) return null;
@@ -138,34 +133,36 @@ async function pollApifyRun(runId: string): Promise<{ status: string; text?: str
       const record = Array.isArray(items) ? items[0] : items;
       if (!record) return { status: 'error' };
 
-      // Build result
+      // Build result (handle both YouTube and Douyin output formats)
       let result = '';
       if (record.title) result += `标题：${record.title}\n`;
-      if (record.caption) result += `描述：${record.caption}\n`;
-      if (record.nickname) result += `作者：${record.nickname}\n`;
+      const desc = record.description || record.caption || '';
+      if (desc) result += `描述：${desc}\n`;
+      const author = record.nickname || record.channelName || record.author || '';
+      if (author) result += `作者：${author}\n`;
       if (record.diggCount !== undefined) result += `点赞数：${record.diggCount}\n`;
 
+      // Text transcript (YouTube Apify format: full transcript as text)
       if (record.text && typeof record.text === 'string' && record.text.length > 10) {
-        result += `\n--- 视频文案（逐字稿）---\n${record.text}\n`;
+        result += `\n--- 字幕文本 ---\n${record.text}\n`;
       }
 
+      // Segmented transcript (Douyin Apify format)
       if (record.transcript && Array.isArray(record.transcript)) {
         const lines = record.transcript
-          .filter((s: { text?: string }) => s.text?.trim())
+          .filter((s: { text?: string }) => s?.text)
           .map((s: { start?: number; text?: string }) => {
             const t = s.start ? `[${Math.floor(s.start / 60)}:${(s.start % 60).toFixed(0).padStart(2, '0')}]` : '';
-            return `${t} ${s.text}`;
+            return `${t} ${String(s.text).replace(/<[^>]+>/g, '').trim()}`;
           });
         if (lines.length > 0) result += `\n--- 逐句字幕 ---\n${lines.join('\n')}\n`;
       }
 
       if (result.trim().length > 20) return { status: 'completed', text: result.trim().slice(0, 10000) };
-      // Check for explicit error
+
       const errMsg = record.errMsg || '';
-      if (errMsg.includes('no audio') || errMsg.includes('no transcript')) {
-        return { status: 'no_transcript', error: errMsg, title: record.title || '', caption: record.caption || '' };
-      }
-      return { status: 'no_transcript', error: errMsg, title: record.title || '', caption: record.caption || '' };
+      if (errMsg) return { status: 'no_transcript', error: errMsg, title: record.title || '', caption: desc };
+      return { status: 'no_transcript', error: '未找到字幕', title: record.title || '', caption: desc };
     }
 
     if (runStatus === 'FAILED' || runStatus === 'TIMED-OUT' || runStatus === 'ABORTED') {
