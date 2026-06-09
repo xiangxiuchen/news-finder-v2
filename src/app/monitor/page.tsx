@@ -8,10 +8,12 @@ const PRODUCTS = ['golf cart battery', 'lithium battery', 'marine battery', 'sol
 
 interface BrandData {
   brand: string;
-  news: { title: string; url: string; source: string; date: string; isNew: boolean }[];
-  reddit: { title: string; url: string; snippet: string }[];
-  amazon: { title: string; price: string; isNew: boolean }[];
+  news: { title: string; url: string; src: string; date: string; isNew: boolean }[];
+  youtube: { title: string; url: string; channel: string; date: string }[];
+  reddit: { title: string; url: string; snippet: string; sentiment?: string }[];
+  amazon: { title: string; price: string; rating: string; reviewCount: string; isNew: boolean }[];
   website: { title: string; url: string }[];
+  sentiment: string;
   newCount: number;
 }
 
@@ -151,17 +153,19 @@ export default function MonitorPage() {
               )}
             </div>
 
-            {/* News */}
-            {brand.news.length > 0 && (
+            {/* YouTube — 达人视频 */}
+            {brand.youtube && brand.youtube.length > 0 && (
               <div className="mb-3">
-                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">📰 新闻</p>
-                {brand.news.map((n, i) => (
-                  <a key={i} href={n.url} target="_blank" className="flex items-start gap-2 py-1.5 group">
-                    <span className="w-1 h-1 rounded-full bg-gray-300 mt-1.5 shrink-0" />
-                    <span className="text-xs text-gray-600 group-hover:text-gray-900 leading-relaxed">
-                      {n.title}
-                      {n.isNew && <span className="ml-1 text-[10px] text-red-500 font-medium">🆕</span>}
+                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">📺 YouTube 达人视频</p>
+                {brand.youtube.map((v: { title: string; url: string; channel?: string }, i: number) => (
+                  <a key={i} href={v.url} target="_blank" className="flex items-start gap-2 py-1.5 group">
+                    <span className="w-3.5 h-3.5 rounded bg-red-50 flex items-center justify-center shrink-0 mt-0.5">
+                      <svg className="w-2 h-2 text-red-500" viewBox="0 0 24 24" fill="currentColor"><path d="M19.6 2.2C18.9 1.9 15.7 1 12 1S5.1 1.9 4.4 2.2C3.1 2.8 2 4.5 2 6.5v11c0 2 1.1 3.7 2.4 4.3.7.3 3.9 1.2 7.6 1.2s6.9-.9 7.6-1.2c1.3-.6 2.4-2.3 2.4-4.3v-11c0-2-1.1-3.7-2.4-4.3zM10 16.5v-9l7 4.5-7 4.5z"/></svg>
                     </span>
+                    <div className="min-w-0">
+                      <span className="text-xs text-gray-600 group-hover:text-gray-900 block truncate">{v.title}</span>
+                      {v.channel && <span className="text-[10px] text-gray-400">{v.channel}</span>}
+                    </div>
                   </a>
                 ))}
               </div>
@@ -182,19 +186,35 @@ export default function MonitorPage() {
               </div>
             )}
 
-            {/* Amazon */}
-            {brand.amazon.length > 0 && (
+            {/* Amazon with ratings */}
+            {brand.amazon && brand.amazon.length > 0 && (
               <div className="mb-3">
                 <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">🛒 Amazon 产品</p>
-                {brand.amazon.map((a, i) => (
-                  <div key={i} className="flex items-center justify-between py-1.5">
-                    <span className="text-xs text-gray-600 flex-1 truncate mr-2">
-                      {a.title}
-                      {a.isNew && <span className="ml-1 text-[10px] text-red-500 font-medium">🆕</span>}
-                    </span>
+                {brand.amazon.map((a: { title: string; price: string; rating: string; reviewCount: string; isNew: boolean }, i: number) => (
+                  <div key={i} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
+                    <div className="flex-1 min-w-0 mr-2">
+                      <span className="text-xs text-gray-600 block truncate">
+                        {a.title}
+                        {a.isNew && <span className="ml-1 text-[10px] text-red-500 font-medium">🆕</span>}
+                      </span>
+                      {a.rating && (
+                        <span className="text-[10px] text-amber-500">
+                          {'★'.repeat(Math.round(parseFloat(a.rating)))}{'☆'.repeat(5 - Math.round(parseFloat(a.rating)))}
+                          {' '}{a.rating}星{a.reviewCount ? ` (${a.reviewCount})` : ''}
+                        </span>
+                      )}
+                    </div>
                     <span className="text-xs font-medium text-gray-900 shrink-0">{a.price}</span>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* User sentiment analysis */}
+            {brand.sentiment && (
+              <div className="mb-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl">
+                <p className="text-[10px] font-medium text-blue-400 uppercase tracking-wider mb-1">💡 用户反馈分析</p>
+                <p className="text-xs text-gray-700 leading-relaxed">{brand.sentiment}</p>
               </div>
             )}
 
