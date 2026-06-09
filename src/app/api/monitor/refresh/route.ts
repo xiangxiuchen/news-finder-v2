@@ -15,53 +15,43 @@ const Q = async (url: string) => {
 
 export async function GET() {
   const start = Date.now();
-  const results: any[] = [];
-  const brandList = BRANDS;
 
-  // Scan each brand (sequential to avoid flooding)
-  for (const brand of brandList) {
-    const b: any = { brand, news: [], youtube: [], reddit: [], amazon: [] };
+  // Parallel: all brands × all sources
+  const results = await Promise.all(BRANDS.map(async (brand) => {
+    const [newsRes, youtubeRes, redditRes, amazonRes] = await Promise.all([
+      searchNews(`${brand} battery`, { time: '24h', sortBy: 'publishedAt' }).catch(() => ({ articles: [] })),
+      Q(`https://www.google.com/search?q=${encodeURIComponent(`site:youtube.com ${brand} battery`)}`).catch(() => ''),
+      Q(`https://www.google.com/search?q=${encodeURIComponent(`site:reddit.com ${brand} battery`)}`).catch(() => ''),
+      Q(`https://www.amazon.com/s?k=${encodeURIComponent(`${brand} battery`)}`).catch(() => ''),
+    ]);
 
-    try {
-      const r = await searchNews(`${brand} battery`, { time: '24h', sortBy: 'publishedAt' });
-      b.news = (r.articles || []).slice(0, 4).map((a: any) => ({
-        title: a.title, url: a.url, source: a.source?.name, date: a.publishedAt,
-        isNew: /new|launch|announc|introduc|release|upgrade/i.test(a.title),
-      }));
-    } catch {}
+    const news = (newsRes.articles || []).slice(0, 4).map((a: any) => ({
+      title: a.title, url: a.url, source: a.source?.name, date: a.publishedAt,
+      isNew: /new|launch|announc|introduc|release|upgrade/i.test(a.title),
+    }));
 
-    try {
-      const t = await Q(`https://www.google.com/search?q=${encodeURIComponent(`site:youtube.com ${brand} battery`)}`);
-      b.youtube = t.split('\n').filter((l: string) => l.includes('youtube.com/watch')).slice(0, 3).map((l: string) => {
-        const m = l.match(/https?:\/\/(?:www\.)?youtube\.com\/watch\?v=[a-zA-Z0-9_-]+/);
+    const parseLinks = (text: string, pattern: RegExp) =>
+      text.split('\n').filter(l => pattern.test(l)).slice(0, 3).map(l => {
+        const m = l.match(pattern);
         return m ? { url: m[0], title: l.replace(/https?:\/\/[^\s]+/g, '').trim().slice(0, 60) } : null;
       }).filter(Boolean);
-    } catch {}
 
-    try {
-      const t = await Q(`https://www.google.com/search?q=${encodeURIComponent(`site:reddit.com ${brand} battery`)}`);
-      b.reddit = t.split('\n').filter((l: string) => l.includes('reddit.com/r/')).slice(0, 3).map((l: string) => {
-        const m = l.match(/https?:\/\/[^\s)]+/);
-        return m ? { url: m[0], title: l.replace(/https?:\/\/[^\s]+/g, '').trim().slice(0, 60) } : null;
-      }).filter(Boolean);
-    } catch {}
-
-    try {
-      const t = await Q(`https://www.amazon.com/s?k=${encodeURIComponent(`${brand} battery`)}`);
-      b.amazon = t.split('\n').filter((l: string) => l.includes('$') && l.toLowerCase().includes('battery')).slice(0, 2).map((l: string) => {
+    return {
+      brand,
+      news,
+      youtube: parseLinks(youtubeRes, /youtube\.com\/watch\?v=[a-zA-Z0-9_-]+/),
+      reddit: parseLinks(redditRes, /https?:\/\/[^\s)]+reddit\.com\/r\/[^\s)]+/),
+      amazon: amazonRes.split('\n').filter(l => l.includes('$') && l.toLowerCase().includes('battery')).slice(0, 2).map(l => {
         const pm = l.match(/\$[\d,.]+/);
         return pm ? { title: l.replace(/\$[\d,.]+/g, '').trim().slice(0, 60), price: pm[0] } : null;
-      }).filter(Boolean);
-    } catch {}
-
-    results.push(b);
-  }
+      }).filter(Boolean),
+    };
+  }));
 
   const elapsed = Date.now() - start;
   return NextResponse.json({
     refreshedAt: new Date().toISOString(),
     elapsed: `${(elapsed / 1000).toFixed(1)}s`,
-    totalTimeMs: elapsed,
     brands: results,
     summary: {
       brandsScanned: results.length,
