@@ -7,7 +7,7 @@ const BRANDS = ['Litime', 'Renogy', 'Battle Born'];
 const Q = async (url: string) => {
   try {
     const r = await fetch(`${JINA}/${encodeURI(url)}`, {
-      headers: { 'Accept': 'text/plain' }, signal: AbortSignal.timeout(5000),
+      headers: { 'Accept': 'text/plain', 'X-With-Links-Summary': 'true' }, signal: AbortSignal.timeout(8000),
     });
     return r.ok ? await r.text() : '';
   } catch { return ''; }
